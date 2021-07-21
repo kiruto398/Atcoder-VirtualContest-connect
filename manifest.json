@@ -1,0 +1,20 @@
+{
+  "name": "AtCoder VirtualContest-Connect",
+  "short_name": "acvc-connect",
+  "version": "1.0.0.0",
+  "manifest_version": 2,
+  "description": "バーチャルコンテストの結果をコンテスト本番の結果につなげる",
+  "icons": {
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [{
+    "matches": ["https://atcoder.jp/contests/a*"],
+    "run_at": "document_end",
+    "js": [
+      "content.js"
+    ]
+  }],
+  "background": {
+    "scripts": ["background.js"]
+  }
+}
