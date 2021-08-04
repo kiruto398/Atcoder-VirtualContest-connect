@@ -21,8 +21,6 @@
 
 chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
 
-  console.log(response);
-
   const vue_standings = document.getElementById('vue-standings');
 
 
@@ -30,11 +28,11 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
   element_final.id = 'add-by-acvc-connect_f';
   element_final.className = 'text-center';
   element_final.style = 'padding: 0px 0px 10px; font-size: 30px;';
-  let text_f = '終了時の順位 : ' + response.final_rank + ' / ' + response.final_submission_number + '　パフォーマンス : ';
+  let text_f = '終了時の順位 : ' + response.my.final_rank + ' / ' + response.contest.final_submission_number + '　パフォーマンス : ';
 
-  if(response.final_perf != null){
-    let color = get_color(response.final_perf);
-    text_f += '<span style = "color: ' + color + '">' + response.final_perf + '</span>';
+  if(response.my.final_perf != null){
+    let color = get_color(response.my.final_perf);
+    text_f += '<span style = "color: ' + color + '">' + response.my.final_perf + '</span>';
   }else{
     text_f += ' - ';
   }
@@ -43,16 +41,16 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
 
   vue_standings.childNodes[4].after(element_final);
 
-  if(response.realtime_rank != null){
+  if(response.my.is_joining_vc){
     const element_realtime = document.createElement('p');
     element_realtime.id = 'add-by-acvc-connect_r';
     element_realtime.className = 'text-center';
     element_realtime.style = 'padding: 0px 0px 10px; font-size: 30px;';
-    let text_r = '現在の順位 : ' + response.realtime_rank + ' / ' + response.final_submission_number + '　パフォーマンス : ';
+    let text_r = '現在の順位 : ' + response.my.realtime_rank + ' / ' + response.contest.final_submission_number + '　パフォーマンス : ';
 
-    if(response.realtime_perf != null){
-      let color = get_color(response.realtime_perf);
-      text_r += '<span style = "color: ' + color + '">' + response.realtime_perf + '</span>';
+    if(response.my.realtime_perf != null){
+      let color = get_color(response.my.realtime_perf);
+      text_r += '<span style = "color: ' + color + '">' + response.my.realtime_perf + '</span>';
     }else{
       text_r += ' - ';
     }
@@ -78,7 +76,7 @@ function get_color(rate){
     }else if(rate < 2000){
       color = 'blue';
     }else if(rate < 2400){
-      color = 'yellow';
+      color = 'gold';
     }else if(rate < 2800){
       color = 'orange';
     }else{
