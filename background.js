@@ -1,6 +1,7 @@
 "use strict";
 
 let contest = {
+  error : false,
   url : null,
   duration : null,
   penalty : 300,
@@ -21,15 +22,10 @@ let my = {
   user_name : null,
   is_joining_vc : false,
   vc : {
-    start_time : null,
-    score : null,
-    valid_elapse : null,
-    elapse : null,
-    prev : {
+    end_time : null,
     score : null,
     valid_elapse : null,
     elapse : null
-    }
   },
   final_rank : null,
   final_rated_rank : null,
@@ -38,6 +34,23 @@ let my = {
   realtime_rated_rank : null,
   realtime_perf : null,
   realtime_ac_numbers : null,
+}
+
+let results = {
+  contest : {
+    error : false,
+    duration : null,
+    final_submission_number : null
+  },
+  my : {
+    is_joining_vc : false,
+    end_time : null,
+    score : null,
+    final_rank : null,
+    final_perf : null,
+    realtime_rank : null,
+    realtime_perf : null
+  }
 }
 
 function refresh_contest(){
@@ -59,7 +72,7 @@ function refresh_contest(){
 
 function refresh_my(){
   my.is_joining_vc = false;
-  my.vc.start_time = null;
+  my.vc.end_time = null;
   my.vc.elapse = null;
   my.vc.valid_elapse = null;
   my.vc.score = null;
@@ -73,27 +86,50 @@ function refresh_my(){
 }
 
 function refresh_realtime(){
-  my.vc.elapse = null;
-  my.vc.valid_elapse = null;
-  my.vc.score = null;
-
   my.realtime_rank = null;
   my.realtime_rated_rank = null;
   my.realtime_perf = null;
   my.realtime_ac_numbers = null;
 
   contest.first_of_get_point_list = Array(contest.task_number).fill(0);
-  contest.realtime_score_list = Array(contest.task_number).fill(0);
+  contest.realtime_score_list = Array(contest.final_submission_number).fill(0);
   contest.is_under_same_scores.fill(false);
 }
 
+function refresh_results(){
+  results.contest.error = false;
+  results.contest.duration = null;
+  results.contest.final_submission_number = null;
+  results.my.is_joining_vc = false;
+  results.my.end_time = null;
+  results.my.score = null;
+  results.my.final_rank = null;
+  results.my.final_perf = null;
+  results.my.realtime_rank = null;
+  results.my.realtime_perf = null;
+}
+
+function refresh_all(){
+  refresh_contest();
+  refresh_my();
+  refresh_realtime();
+  refresh_results();
+}
 
 chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 
-  console.log('mode:' + request.mode);
    if(request.mode == 0){
+
      await set_contest_data(request);
      await update_my_rank();
+
+     if(contest.error){
+       refresh_my();
+       refresh_results();
+       refresh_realtime();
+       return;
+     }
+
 
      const accept_vc_url = /^https:\/\/atcoder.jp\/contests\/a[brg]c\d+\/standings\/virtual$/;
      const valid_vc_url = request.now_url.match(accept_vc_url);
@@ -101,74 +137,74 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
        return;
      }
 
+     update_results();
 
-     if(!my.is_joining_vc){
+     chrome.tabs.sendMessage(sender.tab.id, results);
+   }else if(request.mode == 1){
+     await update_my_rank();
+     if(contest.error){
+       refresh_my();
+       refresh_results();
+       refresh_realtime();
        return;
      }
-
-     console.log(contest.final_score_list);
-     console.log(contest.realtime_score_list);
-
-     chrome.tabs.sendMessage(sender.tab.id, {final_submission_number : contest.final_submission_number, realtime_rank : my.realtime_rank, realtime_perf : my.realtime_perf, final_rank : my.final_rank, final_perf : my.final_perf});
-   }else if(mode == 1){
-     const ret = await popup_process();
-     sendResponse(ret);
    }
 
 });
 
-async function set_contest_data(req){
-  contest.duration = req.contest_duration;
-  my.user_name = req.user_name;
+function update_results(){
+  refresh_results();
 
+  results.contest.error = contest.error;
+
+  results.contest.duration = contest.duration;
+  results.contest.final_submission_number = contest.final_submission_number;
+
+  results.my.score = my.vc.score;
+  results.my.final_rank = my.final_rank;
+  results.my.final_perf = my.final_perf;
+
+  if(my.is_joining_vc){
+    results.my.is_joining_vc = true;
+    results.my.end_time = my.vc.end_time;
+    results.my.realtime_rank = my.realtime_rank;
+    results.my.realtime_perf = my.realtime_perf;
+  }
+
+  return results;
+}
+
+async function set_contest_data(req){
   if(req.contest_url == contest.url){
     return;
   }
 
-  refresh_contest();
-  refresh_my();
+  contest.error = false;
+  refresh_all();
 
+  contest.duration = req.contest_duration;
+  my.user_name = req.user_name;
   contest.url = req.contest_url;
 
   contest.performance_list = await get_performance_list();
   const standings_data = await get_standings_data();
 
+
+  if(contest.error){
+    return;
+  }
+
   contest.final_score_list = standings_data[0][0];
   contest.final_rated_score_list = standings_data[0][1];
   contest.get_point_list = standings_data[1];
   contest.first_of_get_point_list = new Array(contest.get_point_list.length).fill(0);
-
-}
-
-async function update_my_vc(){
-  const vc_status = await get_my_virtual_contest_status();
-
-  let is_updated = false;
-
-  if(vc_status != null){
-    my.is_joining_vc = true;
-
-    if(vc_status.score != my.vc.score){
-      is_updated = true;
-
-      my.vc.score = vc_status.score;
-    }
-
-    my.vc.valid_elapse = vc_status.valid_elapse;
-    my.vc.elapse = vc_status.elapse;
-  }else{
-    refresh_my();
-  }
-
-  console.log(vc_status);
-
-  return is_updated;
 }
 
 async function update_my_rank(){
+
   const is_updated = await update_my_vc();
 
-  if(!my.is_joining_vc){
+  if(contest.error || my.vc.elapsed === 0){
     return;
   }
 
@@ -178,7 +214,7 @@ async function update_my_rank(){
     my.final_rated_rank = get_final_rated_rank();
     my.final_perf = contest.performance_list[my.final_rated_rank-1];
 
-    if(my.vc.elapse == -1){
+    if(!my.is_joining_vc){
       refresh_realtime();
       return;
     }
@@ -188,13 +224,39 @@ async function update_my_rank(){
     }else{
       init_any();
     }
+  }else if(!my.is_joining_vc){
+    refresh_realtime();
+    return;
   }
 
     fit_to(my.vc.elapse);
 
     my.realtime_perf = contest.performance_list[my.realtime_rated_rank-1];
-    console.log('r rank:' + my.realtime_rank + ' perf:' + my.realtime_perf);
-    console.log('f rank:' + my.final_rank + ' perf:' + my.final_perf)
+}
+
+async function update_my_vc(){
+
+  const vc_status = await get_my_virtual_contest_status();
+
+  if(contest.error || vc_status.elapse == 0){
+    return false;
+  }
+
+  let is_updated = false;
+
+  if(vc_status != null){
+
+    if(vc_status.score != my.vc.score){
+      is_updated = true;
+
+      my.vc.score = vc_status.score;
+    }
+
+    my.vc.valid_elapse = vc_status.valid_elapse;
+    my.vc.elapse = vc_status.elapse;
+  }
+
+  return is_updated;
 }
 
 async function popup_process(){
@@ -230,8 +292,6 @@ function init_any(){
   for(let i = 0; i < contest.final_submission_number; i++){
     debug[i] = contest.realtime_score_list[i];
   }
-  console.log('debug');
-  console.log(debug);
 
   my.realtime_rank = 1;
   my.realtime_rated_rank = 1;
@@ -254,17 +314,9 @@ function fit_to(now){
     now = 1e9;
   }
 
-  console.log('fit to ' + now);
-
-  console.log(contest.get_point_list);
-  console.log('before  rank:' + my.realtime_rank + ' perf:' +my.realtime_perf);
-  console.log(contest.first_of_get_point_list);
-
   for(let i = 0; i < contest.task_number; i++){
     while(contest.first_of_get_point_list[i] < contest.get_point_list[i].length){
       const tmp = contest.get_point_list[i][contest.first_of_get_point_list[i]];
-
-      console.log('loop:' + i);
 
       if(tmp.elapsed >= now){
         break;
@@ -298,12 +350,12 @@ function fit_to(now){
     }
   }
 
-  console.log('after  rank:' + my.realtime_rank + ' perf:' +my.realtime_perf);
-  console.log(contest.first_of_get_point_list);
 }
 
 async function get_my_virtual_contest_status(){
   let ret = null;
+  contest.error = true;
+  my.is_joining_vc = false;
 
   await fetch(contest.url + '/standings/virtual/json')
     .then(function(response) {
@@ -318,10 +370,21 @@ async function get_my_virtual_contest_status(){
         }
 
         if(data.UserScreenName === my.user_name){
+          contest.error = false;
 
           let elp = data.Additional['standings.virtualElapsed'];
-          if(elp >= 0){
+          if(elp > 0){
+            my.is_joining_vc = true;
             elp /= 1000000000;
+
+            if(my.vc.end_time == null){
+              my.vc.end_time = new Date();
+              my.vc.end_time.setSeconds(my.vc.end_time.getSeconds() - elp - 1);
+              my.vc.end_time.setSeconds(0);
+              my.vc.end_time.setMilliseconds(0);
+              my.vc.end_time.setMinutes(my.vc.end_time.getMinutes() + contest.duration);
+
+            }
           }
 
           ret = {score : data.TotalResult.Score/100, valid_elapse : data.TotalResult.Elapsed/1000000000, elapse : elp};
@@ -330,7 +393,8 @@ async function get_my_virtual_contest_status(){
         }
       });
 
-    });
+    })
+    .catch();
 
     return ret;
 }
@@ -363,6 +427,9 @@ async function get_performance_list(){
     if(perf != -1){
       perfs.push(parseInt(perf/2));
     }
+  })
+  .catch(error => {
+    contest.error = true;
   });
 
   return perfs;
@@ -440,6 +507,10 @@ async function get_standings_data(){
     if(cnt_isRated > 0){
       sbs[1].push([cnt_isRated+1, -1, 1000000000]);
     }
+  })
+  .catch(error => {
+    contest.error = true;
+    return null;
   });
 
   for(let i = 0; i < contest.task_number; i++){
@@ -451,14 +522,10 @@ async function get_standings_data(){
 
   contest.final_submission_number++;
 
-  console.log('sbs[0]');
-  console.log(sbs[0]);
-
   return [sbs, tasks];
 }
 
 function get_final_rank(){
-  console.log(contest.final_score_list);
   return get_rank(contest.final_score_list);
 }
 function get_final_rated_rank(){
@@ -529,3 +596,20 @@ function get_perf(my_rank){
 
   return ret;
 }
+
+// 現時点でのruleをクリア(removeRules)して
+chrome.declarativeContent.onPageChanged.removeRules(undefined, function() {
+  // 新たなruleを追加する
+  chrome.declarativeContent.onPageChanged.addRules([{
+    conditions: [
+      // アクションを実行する条件
+      new chrome.declarativeContent.PageStateMatcher({
+        pageUrl: {hostEquals: 'atcoder.jp'},
+      })
+    ],
+    // 実行するアクション
+    actions: [
+      new chrome.declarativeContent.ShowPageAction()
+    ]
+  }]);
+});
