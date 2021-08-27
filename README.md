@@ -10,6 +10,8 @@ https://chrome.google.com/webstore/detail/atcoder-virtualcontest-co/cedjfjpgichj
 
 2021/8/27 Ver1.1.0.1
 
+ ・アイコンを変更
+
  ・ABC,ARC,AGC以外のコンテストに対応
  
  ・ポップアップエリアの調整
