@@ -20,5 +20,8 @@ https://chrome.google.com/webstore/detail/atcoder-virtualcontest-co/cedjfjpgichj
  
  2021/8/27 Ver1.1.0.2
  
-  ・UnRatedなコンテストで結果が表示されなくなるバグ修正
- 
+ ・UnRatedなコンテストで結果が表示されなくなるバグ修正
+
+# 確認済のバグ
+
+・Heuristic Contest等一部のコンテストで動作が止まる
