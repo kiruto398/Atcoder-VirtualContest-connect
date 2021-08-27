@@ -2,8 +2,9 @@
 
 (function(){
 
-  const accept_contest_url = /^https:\/\/atcoder.jp\/contests\/a[brg]c\d+/;
-  const contest_url = location.href.match(accept_contest_url)[0];
+
+  const accept_contest_url = /^https:\/\/atcoder.jp\/contests\/[^/]+/;
+  const contest_url = location.href.match(accept_contest_url);
   if(contest_url == null){
     return;
   }
@@ -16,7 +17,7 @@
   const contest_duration = get_contest_duration();
   const href = location.href;
 
-  chrome.runtime.sendMessage({mode : 0, contest_duration : contest_duration, contest_url : contest_url, now_url : href, user_name : my_userName});
+  chrome.runtime.sendMessage({mode : 0, contest_duration : contest_duration, contest_url : contest_url[0], now_url : href, user_name : my_userName});
 })();
 
 chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
@@ -28,13 +29,13 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
   element_final.id = 'add-by-acvc-connect_f';
   element_final.className = 'text-center';
   element_final.style = 'padding: 0px 0px 10px; font-size: 30px;';
-  let text_f = '終了時の順位 : ' + response.my.final_rank + ' / ' + response.contest.final_submission_number + '　パフォーマンス : ';
+  let text_f = '終了時の順位 : ' + response.my.final_rank + ' / ' + response.contest.final_submission_number + '　Perf : ';
 
   if(response.my.final_perf != null){
     let color = get_color(response.my.final_perf);
     text_f += '<span style = "color: ' + color + '">' + response.my.final_perf + '</span>';
   }else{
-    text_f += ' - ';
+    text_f += ' -';
   }
 
   element_final.innerHTML = text_f;
@@ -46,13 +47,13 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
     element_realtime.id = 'add-by-acvc-connect_r';
     element_realtime.className = 'text-center';
     element_realtime.style = 'padding: 0px 0px 10px; font-size: 30px;';
-    let text_r = '現在の順位 : ' + response.my.realtime_rank + ' / ' + response.contest.final_submission_number + '　パフォーマンス : ';
+    let text_r = '現在の順位 : ' + response.my.realtime_rank + ' / ' + response.contest.final_submission_number + '　Perf : ';
 
     if(response.my.realtime_perf != null){
       let color = get_color(response.my.realtime_perf);
       text_r += '<span style = "color: ' + color + '">' + response.my.realtime_perf + '</span>';
     }else{
-      text_r += ' - ';
+      text_r += ' -';
     }
 
     element_realtime.innerHTML = text_r;
@@ -109,5 +110,8 @@ let my_userName = null;
 
 function get_contest_duration(){
   let cnt = document.getElementById('contest-nav-tabs').childNodes[1].childNodes[1].childNodes[4].textContent;
-  return Number(cnt.split('(')[1].split('分')[0]);
+
+  let ret = cnt.match(/\d+分/)[0].split('分')[0];
+
+  return Number(ret);
 }
