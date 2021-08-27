@@ -1,7 +1,7 @@
 "use strict";
 
 let contest = {
-  error : false,
+  error : true,
   url : null,
   duration : null,
   penalty : 300,
@@ -130,14 +130,17 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
        return;
      }
 
-
-     const accept_vc_url = /^https:\/\/atcoder.jp\/contests\/a[brg]c\d+\/standings\/virtual$/;
+     const accept_vc_url = /^https:\/\/atcoder.jp\/contests\/.+\/standings\/virtual$/;
      const valid_vc_url = request.now_url.match(accept_vc_url);
      if(valid_vc_url == null){
        return;
      }
 
      update_results();
+
+     if(contest.final_submission_number === 1){
+       return;
+     }
 
      chrome.tabs.sendMessage(sender.tab.id, results);
    }else if(request.mode == 1){
@@ -212,7 +215,8 @@ async function update_my_rank(){
 
     my.final_rank = get_final_rank();
     my.final_rated_rank = get_final_rated_rank();
-    my.final_perf = contest.performance_list[my.final_rated_rank-1];
+    my.final_perf = get_final_perf(my.final_rated_rank);
+
 
     if(!my.is_joining_vc){
       refresh_realtime();
@@ -379,7 +383,7 @@ async function get_my_virtual_contest_status(){
 
             if(my.vc.end_time == null){
               my.vc.end_time = new Date();
-              my.vc.end_time.setSeconds(my.vc.end_time.getSeconds() - elp - 1);
+              my.vc.end_time.setSeconds(my.vc.end_time.getSeconds() - elp);
               my.vc.end_time.setSeconds(0);
               my.vc.end_time.setMilliseconds(0);
               my.vc.end_time.setMinutes(my.vc.end_time.getMinutes() + contest.duration);
@@ -526,10 +530,27 @@ async function get_standings_data(){
 }
 
 function get_final_rank(){
+  if(!contest.final_score_list.length){
+    return null;
+  }
+
   return get_rank(contest.final_score_list);
 }
+
 function get_final_rated_rank(){
+  if(!contest.final_score_list.length){
+    return null;
+  }
+
   return get_rank(contest.final_rated_score_list);
+}
+
+function get_final_perf(rated_rank){
+  if(rated_rank == null || (!contest.performance_list.length)){
+    return null;
+  }
+
+  return contest.performance_list[my.final_rated_rank-1];
 }
 
 function get_rank(score_board){
