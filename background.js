@@ -121,6 +121,7 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
    if(request.mode == 0){
 
      await set_contest_data(request);
+     console.log(contest);
      await update_my_rank();
 
      if(contest.error){
@@ -538,7 +539,7 @@ function get_final_rank(){
 }
 
 function get_final_rated_rank(){
-  if(!contest.final_score_list.length){
+  if(!contest.final_rated_score_list.length){
     return null;
   }
 
