@@ -27,7 +27,6 @@ function timer(){
     let now = new Date();
     now.setMilliseconds(0);
     let remain = parseInt((res.my.end_time - now)/1000);
-    remain += 5;
     const s = ('0' + remain%60).slice(-2);
     remain = parseInt(remain/60);
     const m = ('0' + remain%60).slice(-2);
