@@ -18,10 +18,16 @@ https://chrome.google.com/webstore/detail/atcoder-virtualcontest-co/cedjfjpgichj
  
  ・その他軽微なバグ修正
  
- 2021/8/27 Ver1.1.0.2
+2021/8/27 Ver1.1.0.2
  
  ・UnRatedなコンテストで結果が表示されなくなるバグ修正
+ 
+2021/8/30 Ver1.1.0.3
+
+ ・マラソン型のコンテストに対応
+ 
+ ・popupのスコア等の数値にカンマをつけて表示
+ 
+ ・バーチャルコンテスト中に、バーチャルコンテストを受けていない判定になるバグを修正
 
 # 確認済のバグ
-
-・Heuristic Contest等一部のコンテストで動作が止まる
