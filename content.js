@@ -109,9 +109,22 @@ let my_userName = null;
 }
 
 function get_contest_duration(){
-  let cnt = document.getElementById('contest-nav-tabs').childNodes[1].childNodes[1].childNodes[4].textContent;
+  let cnt;
+  let ret;
+  try {
+    let txt = document.getElementById('contest-nav-tabs').childNodes[1].childNodes[1].textContent;
+    const p = /\d{4}-\d{2}-\d{2}\(.\) \d{2}:\d{2}/gu;
+    const txts = txt.match(p);
+    const start_arr = txts[0].match(/\d+/gu);
+    const start_date = new Date(Number(start_arr[0]), Number(start_arr[1]), Number(start_arr[2]), Number(start_arr[3]), Number(start_arr[4]), 0);
 
-  let ret = cnt.match(/\d+分/)[0].split('分')[0];
+    const end_arr = txts[1].match(/\d+/gu);
+    const end_date = new Date(Number(end_arr[0]), Number(end_arr[1]), Number(end_arr[2]), Number(end_arr[3]), Number(end_arr[4]), 0);
 
-  return Number(ret);
+    ret = (end_date.getTime() - start_date.getTime()) / (1000 * 60);
+  } catch(e){
+    ret = null;
+  }
+
+  return ret;
 }
