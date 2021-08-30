@@ -1,78 +1,27 @@
-"use strict";
-
-const dom_remaining_time = document.getElementById('remaining_time');
-const dom_score = document.getElementById('score');
-const dom_realtime_rank = document.getElementById('realtime_rank');
-const dom_realtime_perf = document.getElementById('realtime_perf');
-const dom_final_rank = document.getElementById('final_rank');
-const dom_final_perf = document.getElementById('final_perf');
-
-timer();
-setInterval(timer, 1000);
-
-let cnter = true;
-function timer(){
-  chrome.runtime.sendMessage({mode: 1});
-  const res = chrome.extension.getBackgroundPage().update_results();
-
-  if(res.contest.error){
-    dom_remaining_time.textContent = '-';
-    dom_score.textContent = '';
-    dom_realtime_rank.textContent = '';
-    dom_realtime_perf.textContent = '';
-    dom_final_rank.textContent = '';
-    dom_final_perf.textContent = '';
-
-  }else if(res.my.is_joining_vc){
-    let now = new Date();
-    now.setMilliseconds(0);
-    let remain = parseInt((res.my.end_time - now)/1000);
-    const s = ('0' + remain%60).slice(-2);
-    remain = parseInt(remain/60);
-    const m = ('0' + remain%60).slice(-2);
-    const h = ('0' + parseInt(remain/60)).slice(-2);
-
-    dom_remaining_time.textContent = h + ':' + m + ':' + s;
-    dom_score.textContent = res.my.score;
-    dom_realtime_rank.textContent = res.my.realtime_rank;
-    dom_realtime_perf.textContent = res.my.realtime_perf;
-    dom_realtime_perf.style = 'color : ' + get_color(res.my.realtime_perf) + ';';
-    dom_final_rank.textContent = res.my.final_rank;
-    dom_final_perf.textContent = res.my.final_perf;
-    dom_final_perf.style = 'color : ' + get_color(res.my.final_perf) + ';';
-
-  }else{
-    dom_remaining_time.textContent = '-';
-    dom_score.textContent = res.my.score;
-    dom_realtime_rank.textContent = '';
-    dom_realtime_perf.textContent = '';
-    dom_final_rank.textContent = res.my.final_rank;
-    dom_final_perf.textContent = res.my.final_perf;
-    dom_final_perf.style = 'color : ' + get_color(res.my.final_perf) + ';';
-  }
-}
-
-function get_color(rate){
-  let color = null;
-  if(rate != null){
-    if(rate < 400){
-      color = 'black';
-    }else if(rate < 800){
-      color = 'brown';
-    }else if(rate < 1200){
-      color = 'green';
-    }else if(rate < 1600){
-      color = 'aqua';
-    }else if(rate < 2000){
-      color = 'blue';
-    }else if(rate < 2400){
-      color = 'gold';
-    }else if(rate < 2800){
-      color = 'orange';
-    }else{
-      color = 'red';
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>popup</title>
+  <style>
+    body{
+      width: 300px;
     }
-  }
+  </style>
+</head>
+<body>
+  <div style='line-height:50%'>
+  <p style='font-size:x-large'> 残り時間　<span id='remaining_time'></span></p>
+  <p style='font-size:large'> SCORE　:　<span id='score'></span></p>
+  <p>　</p>
+  <p style='font-size:large'> 現在の順位　　　<span id='realtime_rank'></span></p>
+  <p style='font-size:large'> パフォーマンス　<span id='realtime_perf'></span></p>
+  <p>　</p>
+  <p style='font-size:large'> 終了時の順位　　<span id='final_rank'></span></p>
+  <p style='font-size:large'> パフォーマンス　<span id='final_perf'></span></p>
+  </div>
 
-  return color;
-}
+
+  <script src='popup.js'></script>
+</body>
+</html>
