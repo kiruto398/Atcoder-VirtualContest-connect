@@ -121,7 +121,6 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
    if(request.mode == 0){
 
      await set_contest_data(request);
-     console.log(contest);
      await update_my_rank();
 
      if(contest.error){
@@ -146,6 +145,7 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
      chrome.tabs.sendMessage(sender.tab.id, results);
    }else if(request.mode == 1){
      await update_my_rank();
+
      if(contest.error){
        refresh_my();
        refresh_results();
@@ -208,7 +208,10 @@ async function update_my_rank(){
 
   const is_updated = await update_my_vc();
 
-  if(contest.error || my.vc.elapsed === 0){
+  if(contest.error){
+    return;
+  }
+  if(my.vc.elapsed === 0){
     return;
   }
 
@@ -243,7 +246,10 @@ async function update_my_vc(){
 
   const vc_status = await get_my_virtual_contest_status();
 
-  if(contest.error || vc_status.elapse == 0){
+  if(contest.error){
+    return false;
+  }
+  if(vc_status.elapse == 0){
     return false;
   }
 
@@ -359,8 +365,8 @@ function fit_to(now){
 
 async function get_my_virtual_contest_status(){
   let ret = null;
-  contest.error = true;
-  my.is_joining_vc = false;
+  let error = true;
+  let is_joining_vc = false;
 
   await fetch(contest.url + '/standings/virtual/json')
     .then(function(response) {
@@ -375,20 +381,19 @@ async function get_my_virtual_contest_status(){
         }
 
         if(data.UserScreenName === my.user_name){
-          contest.error = false;
+          error = false;
 
           let elp = data.Additional['standings.virtualElapsed'];
           if(elp > 0){
-            my.is_joining_vc = true;
+            is_joining_vc = true;
             elp /= 1000000000;
 
-            if(my.vc.end_time == null){
+            if((my.vc.end_time == null) && (contest.duration != null)){
               my.vc.end_time = new Date();
               my.vc.end_time.setSeconds(my.vc.end_time.getSeconds() - elp);
               my.vc.end_time.setSeconds(0);
               my.vc.end_time.setMilliseconds(0);
               my.vc.end_time.setMinutes(my.vc.end_time.getMinutes() + contest.duration);
-
             }
           }
 
@@ -401,6 +406,8 @@ async function get_my_virtual_contest_status(){
     })
     .catch();
 
+    contest.error = error;
+    my.is_joining_vc = is_joining_vc;
     return ret;
 }
 
