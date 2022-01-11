@@ -21,12 +21,22 @@
 })();
 
 chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
+  const div = document.createElement('div');
+  div.id = 'add-by-acvc';
+  div.style = 'padding: 10px; margin-bottom: 10px; border: 1px dotted #333333; border-radius: 5px;'
 
-  const vue_standings = document.getElementById('vue-standings');
+  const sc = document.createElement('script');
+  sc.src = 'https://platform.twitter.com/widgets.js'
+  sc.charset = 'utf-8';
+  sc.innerHTML = 'async';
+  div.appendChild(sc);
 
+  const element_twi = document.createElement('p');
+  element_twi.style = 'text-align: right;'
+  element_twi.innerHTML = '<a href="https://twitter.com/intent/tweet?url=%0D%0A&text=' + response.contest.name + ' バチャ%0D%0A成績 ' + response.my.accepted + '完 ' + response.my.score + '(' + mm_ss(response.my.elapse) + ')%0D%0A順位 ' + response.my.final_rank + '%0D%0Aパフォ' + response.my.final_perf + '&hashtags=AtCoder,' + response.contest.name + ',AC_VCC" class="twitter-share-button"> Tweet</a>';
+  div.childNodes[0].after(element_twi);
 
   const element_final = document.createElement('p');
-  element_final.id = 'add-by-acvc-connect_f';
   element_final.className = 'text-center';
   element_final.style = 'padding: 0px 0px 10px; font-size: 30px;';
   let text_f = '終了時の順位 : ' + response.my.final_rank + ' / ' + response.contest.final_submission_number + '　Perf : ';
@@ -39,12 +49,10 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
   }
 
   element_final.innerHTML = text_f;
-
-  vue_standings.childNodes[4].after(element_final);
+  div.childNodes[0].after(element_final);
 
   if(response.my.is_joining_vc){
     const element_realtime = document.createElement('p');
-    element_realtime.id = 'add-by-acvc-connect_r';
     element_realtime.className = 'text-center';
     element_realtime.style = 'padding: 0px 0px 10px; font-size: 30px;';
     let text_r = '現在の順位 : ' + response.my.realtime_rank + ' / ' + response.contest.final_submission_number + '　Perf : ';
@@ -57,10 +65,11 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
     }
 
     element_realtime.innerHTML = text_r;
-
-    vue_standings.childNodes[4].after(element_realtime);
+    div.childNodes[0].after(element_realtime);
   }
 
+  const vue_standings = document.getElementById('vue-standings');
+  vue_standings.childNodes[4].after(div);
 })
 
 function get_color(rate){
@@ -125,6 +134,15 @@ function get_contest_duration(){
   } catch(e){
     ret = null;
   }
+
+  return ret;
+}
+
+function mm_ss(time){
+  const s = ('0' + time%60).slice(-2);
+  const m = parseInt(time/60);
+
+  const ret = m + ":" + s;
 
   return ret;
 }
