@@ -29,5 +29,9 @@ https://chrome.google.com/webstore/detail/atcoder-virtualcontest-co/cedjfjpgichj
  ・popupのスコア等の数値にカンマをつけて表示
  
  ・バーチャルコンテスト中に、バーチャルコンテストを受けていない判定になるバグを修正
+ 
+2022/1/12 Ver1.1.1.0
+
+ ・バーチャル順位表に最終的な成績をツイートするボタンの追加
 
 # 確認済のバグ
