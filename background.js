@@ -3,6 +3,7 @@
 let contest = {
   error : true,
   url : null,
+  name : null,
   duration : null,
   penalty : 300,
   task_number : null,
@@ -23,6 +24,7 @@ let my = {
   is_joining_vc : false,
   vc : {
     end_time : null,
+    accepted : null,
     score : null,
     valid_elapse : null,
     elapse : null
@@ -44,7 +46,9 @@ let results = {
   },
   my : {
     is_joining_vc : false,
+    elapse : null,
     end_time : null,
+    accepted : null,
     score : null,
     final_rank : null,
     final_perf : null,
@@ -56,6 +60,7 @@ let results = {
 function refresh_contest(){
   contest.url = null;
   contest.duration = null;
+  contest.name = null;
   contest.penalty = 300;
   contest.task_number = null;
   contest.task_scores = null;
@@ -76,6 +81,7 @@ function refresh_my(){
   my.vc.elapse = null;
   my.vc.valid_elapse = null;
   my.vc.score = null;
+  my.vc.accepted = null;
   my.final_rank = null;
   my.final_rated_rank = null;
   my.final_perf = null;
@@ -101,7 +107,9 @@ function refresh_results(){
   results.contest.duration = null;
   results.contest.final_submission_number = null;
   results.my.is_joining_vc = false;
+  results.my.elapse = null;
   results.my.end_time = null;
+  results.my.accepted = null;
   results.my.score = null;
   results.my.final_rank = null;
   results.my.final_perf = null;
@@ -160,11 +168,13 @@ function update_results(){
   refresh_results();
 
   results.contest.error = contest.error;
-
+  results.contest.name = contest.name.toUpperCase();
   results.contest.duration = contest.duration;
   results.contest.final_submission_number = contest.final_submission_number;
 
+  results.my.accepted = my.vc.accepted;
   results.my.score = my.vc.score;
+  results.my.elapse = my.vc.valid_elapse;
   results.my.final_rank = my.final_rank;
   results.my.final_perf = my.final_perf;
 
@@ -189,6 +199,7 @@ async function set_contest_data(req){
   contest.duration = req.contest_duration;
   my.user_name = req.user_name;
   contest.url = req.contest_url;
+  contest.name = contest.url.match(/(?<=https:\/\/atcoder.jp\/contests\/)[a-z]{3}[0-9]+/)[0];
 
   contest.performance_list = await get_performance_list();
   const standings_data = await get_standings_data();
@@ -261,6 +272,7 @@ async function update_my_vc(){
       is_updated = true;
 
       my.vc.score = vc_status.score;
+      my.vc.accepted = vc_status.accepted;
     }
 
     my.vc.valid_elapse = vc_status.valid_elapse;
@@ -397,7 +409,7 @@ async function get_my_virtual_contest_status(){
             }
           }
 
-          ret = {score : data.TotalResult.Score/100, valid_elapse : data.TotalResult.Elapsed/1000000000, elapse : elp};
+          ret = {score : data.TotalResult.Score/100, valid_elapse : data.TotalResult.Elapsed/1000000000, elapse : elp, accepted : data.TotalResult.Accepted};
           is_break = true;
           return;
         }
