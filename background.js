@@ -1,641 +1,573 @@
 "use strict";
 
-let contest = {
-  error : true,
-  url : null,
-  name : null,
-  duration : null,
-  penalty : 300,
-  task_number : null,
-  task_scores : null,
-  final_submission_number : 0,
-  final_score_list : null,
-  performance_list : [],
-  final_rated_score_list : null,
-  is_rated_list : [],
-  get_point_list : [],
-  first_of_get_point_list : null,
-  realtime_score_list : [],
-  is_under_same_scores : []
-};
+class ContestInfo{
+  constructor(penalty = 300){
+    this.error = true;
+    this.url = null;
+    this.name = null;
+    this.duration = null;
+    this.penalty = penalty;
+    this.taskNum = null;
+    this.tackScores = null;
+    this.entryCount = 0;
+    this.ratedEntryCount = 0;
+    this.finalScores = null;
+    this.finalRatedScores = null;
+    this.performances = null;
+    this.isRatedList = null;
+    this.tasksAcElapses = null;
+    this.indexOfTasksAcElapses = null;
+    this.realtimeScores = null;
+    this.isUnderSameScores = null;
+  }
 
-let my = {
-  user_name : null,
-  is_joining_vc : false,
-  vc : {
-    end_time : null,
-    accepted : null,
-    score : null,
-    valid_elapse : null,
-    elapse : null
-  },
-  final_rank : null,
-  final_rated_rank : null,
-  final_perf : null,
-  realtime_rank : null,
-  realtime_rated_rank : null,
-  realtime_perf : null,
-  realtime_ac_numbers : null,
-}
+  initializeRealtime(){
+    this.indexOfTasksAcElapses.fill(0);
+    this.realtimeScores.fill(0);
+    this.isUnderSameScores.fill(false);
+  }
 
-let results = {
-  contest : {
-    error : false,
-    duration : null,
-    final_submission_number : null
-  },
-  my : {
-    is_joining_vc : false,
-    elapse : null,
-    end_time : null,
-    accepted : null,
-    score : null,
-    final_rank : null,
-    final_perf : null,
-    realtime_rank : null,
-    realtime_perf : null
+  async setAsyncData(){
+
+    this.error = false;
+    await Promise.all([this.#fetchPerformances(), this.#fetchStandings()])
+    .then(responses => {
+      this.performances = responses[0];
+
+      this.finalScores = responses[1].finalScores;
+      this.finalRatedScores = responses[1].finalRatedScores;
+      this.tasksAcElapses = responses[1].tasksAcElapses;
+      this.isRatedList = responses[1].isRatedList;
+      this.entryCount = responses[1].entryCount;
+      this.ratedEntryCount = responses[1].ratedEntryCount;
+      this.taskNum = responses[1].taskNum;
+
+      this.indexOfTasksAcElapses = new Array(this.taskNum).fill(0);
+      this.realtimeScores = Array(this.entryCount).fill(0);
+      this.isUnderSameScores = Array(this.entryCount).fill(false);
+
+      this.entryCount++;
+      this.ratedEntryCount++;
+    })
+    .catch(e => {
+      this.error = true;
+      this.url = null;
+      this.loading = false;
+    });
+
+  }
+
+  async #fetchPerformances(){
+    let performances = [];
+    await fetch(this.url + '/results/json')
+    .then(response => {
+      return response.json();
+    })
+    .then(results => {
+
+      let cnt = 0;
+      for(let i = 0, len = results.length; i < len; i++){
+        const result = results[i];
+        if(result.IsRated == false){
+          continue;
+        }
+        cnt++;
+
+        let perf = result.Performance;
+        if(perf < 400){
+          perf = Math.round(400.0 / Math.exp((400.0-perf) / 400));
+        }
+
+        performances.push(perf);
+      }
+
+      //コンテスト本番の最下位以下の順位には
+      //最下位のパフォーマンスの半分を当てはめる
+      if(performances.length > 0){
+        performances.push(parseInt(performances[performances.length-1]/2));
+      }
+
+      console.log('perfCount: ' + cnt);
+    })
+    .catch(error => {
+      console.log(error);
+    });
+
+    return performances;
+  }
+
+  async #fetchStandings(){
+    let ret = {
+      finalScores : [],
+      finalRatedScores : [],
+      tasksAcElapses : [],
+      isRatedList : [],
+      entryCount : 0,
+      ratedEntryCount : 0,
+      taskNum : null
+    };
+
+    await fetch(this.url + '/standings/json')
+    .then(response => {
+      return response.json();
+    })
+    .then(standingsData => {
+
+      ret.taskNum = standingsData.TaskInfo.length;
+      let taskName2Index = {};
+      for(let i = 0, len = ret.taskNum; i < len; i++){
+        ret.tasksAcElapses[i] = [];
+        taskName2Index[standingsData.TaskInfo[i].TaskScreenName] = i;
+      }
+
+      ret.entryCount = standingsData.StandingsData.length;
+      for(let i = 0; i < ret.entryCount; i++){
+        const standings = standingsData.StandingsData[i];
+
+        if(ret.finalScores.length === 0 | (ret.finalScores[ret.finalScores.length-1] != standings.Rank)){
+          ret.finalScores.push([standings.Rank
+            , standings.TotalResult.Score / 100
+            , standings.TotalResult.Elapsed / 1000000000]);
+        }
+
+        let tmpTasksAcScore = [];
+        const taskKeys = Object.keys(standings.TaskResults);
+        for(let j = 0, lenTaskKeys = taskKeys.length; j < lenTaskKeys; j++){
+          const task = standings.TaskResults[taskKeys[j]];
+          if(task.Score <= 0){
+            continue;
+          }
+          tmpTasksAcScore.push({elapsed : task.Elapsed / 1000000000
+            , penalty : task.Penalty
+            , ind : taskName2Index[taskKeys[j]]
+            , addingScore : task.Score/100})
+        }
+
+        //ペナルティを問題ごとに累積で付与する
+        tmpTasksAcScore.sort((a, b) => a.elapsed - b.elapsed);
+        let countPenalty = 0;
+        for(let j = 0, len = tmpTasksAcScore.length; j < len; j++){
+          const task = tmpTasksAcScore[j];
+          countPenalty += task.penalty;
+
+          ret.tasksAcElapses[task.ind].push({key : i
+            , elapsed : task.elapsed + countPenalty*this.penalty
+            , addingScore : task.addingScore});
+        }
+
+        ret.isRatedList.push(standings.IsRated);
+
+        if(!standings.IsRated){
+          continue;
+        }
+
+        ret.ratedEntryCount++;
+
+        if(ret.finalRatedScores[ret.finalRatedScores.length-1] != standings.Rank){
+          ret.finalRatedScores.push([ret.ratedEntryCount
+            , standings.TotalResult.Score / 100
+            , standings.TotalResult.Elapsed / 1000000000]);
+        }
+      }
+
+
+      //門番の追加
+      ret.finalScores.push([ret.entryCount+1, -1, 1000000000]);
+      ret.finalRatedScores.push([ret.ratedEntryCount, -1, 1000000000]);
+    })
+    .catch(error => {
+      this.error = true;
+      this.url = null;
+      console.log(error);
+    });
+
+    for(let i = 0, len = ret.tasksAcElapses.length; i < len; i++){
+      ret.tasksAcElapses[i].sort((a, b) => a.elapsed - b.elapsed);
+    }
+    return ret;
+  }
+
+  getResults(){
+    let ret = {
+      error : this.error,
+      duration : this.duration,
+      entryCount : this.entryCount,
+      ratedEntryCount : this.ratedEntryCount,
+      name : this.name
+    }
+
+    return ret;
   }
 }
+const contestInfo = new ContestInfo();
 
-function refresh_contest(){
-  contest.url = null;
-  contest.duration = null;
-  contest.name = null;
-  contest.penalty = 300;
-  contest.task_number = null;
-  contest.task_scores = null;
-  contest.final_submission_number = 0;
-  contest.final_score_list = null;
-  contest.performance_list = [];
-  contest.final_rated_score_list = null;
-  contest.is_rated_list = [];
-  contest.get_point_list = null;
-  contest.first_of_get_point_list = null;
-  contest.realtime_score_list = [];
-  contest.is_under_same_scores = [];
+class MyInfo{
+  constructor(){
+    this.userName = null;
+
+    this.finalRank = null;
+    this.finalRatedRank = null;
+    this.finalPerf = null;
+    this.realtimeRank = null;
+    this.realtimeRatedRank = null;
+    this.realtimePerf = null;
+    this.vc = {
+        endTime : null,
+        acceptedNum : null,
+        score : null,
+        validElapse : null,
+        elapse : null
+    }
+  }
+
+  initialize(userName = null){
+    this.userName = userName;
+
+    this.finalRank = null;
+    this.finalRatedRank = null;
+    this.finalPerf = null;
+    this.realtimeRank = null;
+    this.realtimeRatedRank = null;
+    this.realtimePerf = null;
+    this.vc = {
+        endTime : null,
+        acceptedNum : null,
+        score : null,
+        validElapse : null,
+        elapse : null,
+        penalty : null
+    }
+  }
+
+  async update(){
+    if(contestInfo.error){
+      return;
+    }
+
+    const updatedMyVcScore = await this.#fetchMyVcScore();
+    if(!updatedMyVcScore.elapse){
+      this.initialize(this.userName);
+      return;
+    }else if(updatedMyVcScore.elapse < this.vc.elapse){
+      this.initializeRealtime(this.userName);
+      contestInfo.initializeRealtime();
+    }
+
+    this.vc.elapse = updatedMyVcScore.elapse;
+
+    if(this.vc.score !== updatedMyVcScore.score){
+      this.vc.score = updatedMyVcScore.score;
+      this.vc.validElapse = updatedMyVcScore.validElapse;
+      this.vc.acceptedNum = updatedMyVcScore.acceptedNum;
+      this.vc.endTime = updatedMyVcScore.endTime;
+      this.vc.penalty = updatedMyVcScore.penalty;
+
+      this.finalRank = this.#getFinalRank();
+      this.finalRatedRank = this.#getFinalRatedRank();
+      this.finalPerf = contestInfo.performances[this.finalRatedRank-1];
+      if(!this.finalPerf){
+        this.finalPerf = contestInfo.performances[contestInfo.performances.length-2];
+      }
+
+      if(this.vc.elapse > 0){
+        this.#fitBackwardTo(this.vc.validElapse);
+        this.#fitForwardTo(this.vc.validElapse);
+
+        if(this.vc.score === 0){
+          this.#updateMyRealtimeRankZero();
+        }else{
+          this.#updateMyRealtimeRankAny();
+        }
+      }
+    }
+
+    if(this.vc.elapse <= 0){
+      this.initializeRealtime();
+      contestInfo.initializeRealtime();
+      return;
+    }
+
+    this.#fitForwardTo(this.vc.elapse + this.vc.penalty*contestInfo.penalty);
+    this.realtimePerf = contestInfo.performances[this.realtimeRatedRank-1];
+    if(!this.realtimePerf){
+      this.realtimePerf = contestInfo.performances[contestInfo.performances.length-2];
+    }
+  }
+
+  async #fetchMyVcScore(){
+    let ret = {
+      score : null,
+      validElapse : null,
+      elapse : null,
+      acceptedNum : null,
+      endTime : null,
+      penalty : null
+    };
+
+    await fetch(contestInfo.url + '/standings/virtual/json')
+      .then(response => {
+        return response.json();
+      })
+      .then(virtualStandings => {
+
+        for(let i = 0, len = virtualStandings.StandingsData.length; i < len; i++){
+
+          if(virtualStandings.StandingsData[i].UserScreenName !== this.userName){
+            continue;
+          }
+
+
+          const data = virtualStandings.StandingsData[i];
+
+          ret.elapse = data.Additional['standings.virtualElapsed'];
+          if(ret.elapse > 0){
+            ret.elapse /= 1000000000;
+
+
+            if(contestInfo.duration){
+              let end_time = new Date();
+              end_time.setSeconds(end_time.getSeconds() - ret.elapse);
+              end_time.setSeconds(0);
+              end_time.setMilliseconds(0);
+              end_time.setMinutes(end_time.getMinutes() + contestInfo.duration);
+              ret.endTime = end_time;
+            }
+          }
+
+          ret.score = data.TotalResult.Score/100;
+          ret.validElapse = data.TotalResult.Elapsed/1000000000;
+          ret.acceptedNum = data.TotalResult.Accepted;
+          ret.penalty = data.TotalResult.Penalty;
+          break;
+        }
+
+      })
+      .catch( e => {
+        console.log(e);
+      });
+
+      return ret;
+  }
+
+  #getFinalRank(){
+    const ret = this.#binSearchRank(contestInfo.finalScores);
+    return ret;
+  }
+
+  #getFinalRatedRank(){
+    const ret = this.#binSearchRank(contestInfo.finalRatedScores);
+    return ret;
+  }
+
+  #binSearchRank(scoreBoard){
+
+    if(!scoreBoard){
+      return null;
+    }
+
+    let l = 0;
+    let r = scoreBoard.length-1;
+    while(l <= r){
+      const m = Number.parseInt((l+r)/2);
+      if(this.vc.score === scoreBoard[m][1]){
+        if(this.vc.validElapse === scoreBoard[m][2]){
+          return scoreBoard[m][0];
+        }else if(this.vc.validElapse < scoreBoard[m][2]){
+          r = m-1;
+        }else{
+          l = m+1;
+        }
+      }else if(this.vc.score > scoreBoard[m][1]){
+        r = m-1;
+      }else{
+        l = m+1;
+      }
+    }
+
+    return scoreBoard[l][0];
+  }
+
+  #updateMyRealtimeRankZero(){
+    this.realtimeRank = 1;
+    this.realtimeRatedRank = 1;
+    for(let i = 0; i < contestInfo.realtimeScores.length; i++){
+      if(contestInfo.realtimeScores[i] > this.vc.score){
+        this.realtimeRank++;
+        contestInfo.isUnderSameScores[i] = false;
+
+        if(contestInfo.isRatedList[i]){
+          this.realtimeRatedRank++;
+        }
+      }else{
+        contestInfo.isUnderSameScores[i] = true;
+      }
+    }
+  }
+
+  #updateMyRealtimeRankAny(){
+    this.realtimeRank = 1;
+    this.realtimeRatedRank = 1;
+    for(let i = 0; i < contestInfo.realtimeScores.length; i++){
+      if(contestInfo.realtimeScores[i] >= this.vc.score){
+        this.realtimeRank++;
+
+        if(contestInfo.isRatedList[i]){
+          this.realtimeRatedRank++;
+        }
+      }
+
+      contestInfo.isUnderSameScores[i] = false;
+    }
+  }
+
+  #fitForwardTo(currentElapse){
+    console.log('fitForwardTo:' + currentElapse);
+
+      if(currentElapse < 0){
+        currentElapse = 1e9;
+      }
+
+      for(let i = 0; i < contestInfo.taskNum; i++){
+        while(contestInfo.indexOfTasksAcElapses[i] < contestInfo.tasksAcElapses[i].length){
+          const tmp = contestInfo.tasksAcElapses[i][contestInfo.indexOfTasksAcElapses[i]];
+
+          if(tmp.elapsed >= currentElapse){
+            break;
+          }
+
+
+          if(contestInfo.isUnderSameScores[tmp.key]){
+            this.realtimeRank++;
+
+            if(contestInfo.isRatedList[tmp.key]){
+              this.realtimeRatedRank++;
+            }
+          }else if((contestInfo.realtimeScores[tmp.key] < this.vc.score) && (this.vc.score < contestInfo.realtimeScores[tmp.key] + tmp.addingScore)){
+            this.realtimeRank++;
+
+            if(contestInfo.isRatedList[tmp.key]){
+              this.realtimeRatedRank++;
+            }
+          }
+
+          contestInfo.realtimeScores[tmp.key] += tmp.addingScore;
+
+          if(contestInfo.realtimeScores[tmp.key] == this.vc.score){
+            contestInfo.isUnderSameScores[tmp.key] = true;
+          }else{
+            contestInfo.isUnderSameScores[tmp.key] = false;
+          }
+
+          contestInfo.indexOfTasksAcElapses[i]++;
+        }
+      }
+
+  }
+
+  #fitBackwardTo(currentElapse){
+    console.log('fitBackwardTo:' + currentElapse);
+    for(let i = 0; i < contestInfo.taskNum; i++){
+      while(contestInfo.indexOfTasksAcElapses[i]-1 >= 0){
+        const tmp = contestInfo.tasksAcElapses[i][contestInfo.indexOfTasksAcElapses[i]-1];
+        if(tmp.elapsed < currentElapse){
+          break;
+        }
+
+        contestInfo.realtimeScores[tmp.key] -= tmp.addingScore;
+        contestInfo.indexOfTasksAcElapses[i]--;
+      }
+    }
+  }
+
+  initializeRealtime(){
+    this.realtimeRank = null;
+    this.realtimeRatedRank = null;
+    this.realtimePerf = null;
+
+    contestInfo.indexOfTasksAcElapses.fill(0);
+    contestInfo.realtimeScores.fill(0);
+    contestInfo.isUnderSameScores.fill(false);
+  }
+
+  getResults(){
+    let ret = {
+      elapse : this.vc.elapse,
+      validElapse : this.vc.validElapse,
+      endTime : this.vc.endTime,
+      acceptedNum : this.vc.acceptedNum,
+      score : this.vc.score,
+      finalRank : this.finalRank,
+      finalRatedRank : this.finalRatedRank,
+      finalPerf : this.finalPerf,
+      realtimeRank : this.realtimeRank,
+      realtimeRatedRank : this.realtimeRatedRank,
+      realtimePerf : this.realtimePerf
+    }
+
+    return ret;
+  }
 }
+const myInfo = new MyInfo();
 
-function refresh_my(){
-  my.is_joining_vc = false;
-  my.vc.end_time = null;
-  my.vc.elapse = null;
-  my.vc.valid_elapse = null;
-  my.vc.score = null;
-  my.vc.accepted = null;
-  my.final_rank = null;
-  my.final_rated_rank = null;
-  my.final_perf = null;
-  my.realtime_rank = null;
-  my.realtime_rated_rank = null;
-  my.realtime_perf = null;
-  my.realtime_ac_numbers = null;
+class Opt_acvc{
+  constructor(displayRank = 0){
+    this.displayRank = displayRank;
+  }
+
+  setDisplayRank(displayRank){
+    this.displayRank = displayRank;
+  }
+
+  getResults(){
+    let ret = {
+      displayRank: this.displayRank
+    }
+    return ret;
+  }
 }
-
-function refresh_realtime(){
-  my.realtime_rank = null;
-  my.realtime_rated_rank = null;
-  my.realtime_perf = null;
-  my.realtime_ac_numbers = null;
-
-  contest.first_of_get_point_list = Array(contest.task_number).fill(0);
-  contest.realtime_score_list = Array(contest.final_submission_number).fill(0);
-  contest.is_under_same_scores.fill(false);
-}
-
-function refresh_results(){
-  results.contest.error = false;
-  results.contest.duration = null;
-  results.contest.final_submission_number = null;
-  results.my.is_joining_vc = false;
-  results.my.elapse = null;
-  results.my.end_time = null;
-  results.my.accepted = null;
-  results.my.score = null;
-  results.my.final_rank = null;
-  results.my.final_perf = null;
-  results.my.realtime_rank = null;
-  results.my.realtime_perf = null;
-}
-
-function refresh_all(){
-  refresh_contest();
-  refresh_my();
-  refresh_realtime();
-  refresh_results();
-}
+const opt_acvc = new Opt_acvc();
 
 chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
+   if(request.mode === "content"){
+     if(contestInfo.error | (contestInfo.url !== request.contest_url)){
+       contestInfo.url = request.contest_url;
+       const urlSplit = request.contest_url.split('/');
+       contestInfo.name = urlSplit[urlSplit.length-1];
+       contestInfo.duration = request.contest_duration;
+       myInfo.initialize(request.user_name);
 
-   if(request.mode == 0){
+       await contestInfo.setAsyncData();
+     }
 
-     await set_contest_data(request);
-     await update_my_rank();
+     await myInfo.update();
 
-     if(contest.error){
-       refresh_my();
-       refresh_results();
-       refresh_realtime();
+     if(!myInfo.vc.elapse){
        return;
      }
 
      const accept_vc_url = /^https:\/\/atcoder.jp\/contests\/.+\/standings\/virtual$/;
      const valid_vc_url = request.now_url.match(accept_vc_url);
-     if(valid_vc_url == null){
+     if(!valid_vc_url){
        return;
      }
 
-     update_results();
+     chrome.tabs.sendMessage(sender.tab.id, getResults());
+   }else if(request.mode === "popup"){
+     await myInfo.update();
 
-     if(contest.final_submission_number === 1){
+     if(contestInfo.error){
+       myInfo.initialize(myInfo.userName);
        return;
      }
-
-     chrome.tabs.sendMessage(sender.tab.id, results);
-   }else if(request.mode == 1){
-     await update_my_rank();
-
-     if(contest.error){
-       refresh_my();
-       refresh_results();
-       refresh_realtime();
-       return;
-     }
+   }else{
+     opt_acvc.setDisplayRank(request.displayRank);
    }
 
+   return;
 });
 
-function update_results(){
-  refresh_results();
-
-  results.contest.error = contest.error;
-  results.contest.name = contest.name.toUpperCase();
-  results.contest.duration = contest.duration;
-  results.contest.final_submission_number = contest.final_submission_number;
-
-  results.my.accepted = my.vc.accepted;
-  results.my.score = my.vc.score;
-  results.my.elapse = my.vc.valid_elapse;
-  results.my.final_rank = my.final_rank;
-  results.my.final_perf = my.final_perf;
-
-  if(my.is_joining_vc){
-    results.my.is_joining_vc = true;
-    results.my.end_time = my.vc.end_time;
-    results.my.realtime_rank = my.realtime_rank;
-    results.my.realtime_perf = my.realtime_perf;
-  }
-
-  return results;
-}
-
-async function set_contest_data(req){
-  if(req.contest_url == contest.url){
-    return;
-  }
-
-  contest.error = false;
-  refresh_all();
-
-  contest.duration = req.contest_duration;
-  my.user_name = req.user_name;
-  contest.url = req.contest_url;
-  contest.name = contest.url.match(/(?<=https:\/\/atcoder.jp\/contests\/)[a-z]{3}[0-9]+/)[0];
-
-  contest.performance_list = await get_performance_list();
-  const standings_data = await get_standings_data();
-
-
-  if(contest.error){
-    return;
-  }
-
-  contest.final_score_list = standings_data[0][0];
-  contest.final_rated_score_list = standings_data[0][1];
-  contest.get_point_list = standings_data[1];
-  contest.first_of_get_point_list = new Array(contest.get_point_list.length).fill(0);
-}
-
-async function update_my_rank(){
-
-  const is_updated = await update_my_vc();
-
-  if(contest.error){
-    return;
-  }
-  if(my.vc.elapsed === 0){
-    return;
-  }
-
-  if(is_updated){
-
-    my.final_rank = get_final_rank();
-    my.final_rated_rank = get_final_rated_rank();
-    my.final_perf = get_final_perf(my.final_rated_rank);
-
-
-    if(!my.is_joining_vc){
-      refresh_realtime();
-      return;
-    }
-
-    if(my.vc.score == 0){
-      init_zero();
-    }else{
-      init_any();
-    }
-  }else if(!my.is_joining_vc){
-    refresh_realtime();
-    return;
-  }
-
-    fit_to(my.vc.elapse);
-
-    my.realtime_perf = contest.performance_list[my.realtime_rated_rank-1];
-}
-
-async function update_my_vc(){
-
-  const vc_status = await get_my_virtual_contest_status();
-
-  if(contest.error){
-    return false;
-  }
-  if(vc_status.elapse == 0){
-    return false;
-  }
-
-  let is_updated = false;
-
-  if(vc_status != null){
-
-    if(vc_status.score != my.vc.score){
-      is_updated = true;
-
-      my.vc.score = vc_status.score;
-      my.vc.accepted = vc_status.accepted;
-    }
-
-    my.vc.valid_elapse = vc_status.valid_elapse;
-    my.vc.elapse = vc_status.elapse;
-  }
-
-  return is_updated;
-}
-
-async function popup_process(){
-  await update();
-
-  return [my.is_joining_vc, my.realtime_rank, my.realtime_perf, my.final_rank, my.final_perf, my.vc.score, contest.final_submission_number, contest.duration];
-}
-
-function init_zero(){
-  fit_to(my.vc.elapse);
-
-  my.realtime_rank = 1;
-  my.realtime_rated_rank = 1;
-  for(let i = 0; i < contest.realtime_score_list.length; i++){
-    if(contest.realtime_score_list[i] > my.vc.score){
-      my.realtime_rank++;
-      contest.is_under_same_scores[i] = false;
-
-      if(contest.is_rated_list[i]){
-        my.realtime_rated_rank++;
-      }
-    }else{
-      contest.is_under_same_scores[i] = true;
-    }
-  }
-}
-
-function init_any(){
-
-  fit_to(my.vc.valid_elapse);
-
-  let debug = new Array(contest.final_submission_number);
-  for(let i = 0; i < contest.final_submission_number; i++){
-    debug[i] = contest.realtime_score_list[i];
-  }
-
-  my.realtime_rank = 1;
-  my.realtime_rated_rank = 1;
-  for(let i = 0; i < contest.realtime_score_list.length; i++){
-    if(contest.realtime_score_list[i] >= my.vc.score){
-      my.realtime_rank++;
-
-      if(contest.is_rated_list[i]){
-        my.realtime_rated_rank++;
-      }
-    }
-
-    contest.is_under_same_scores[i] = false;
-  }
-}
-
-function fit_to(now){
-
-  if(now < 0){
-    now = 1e9;
-  }
-
-  for(let i = 0; i < contest.task_number; i++){
-    while(contest.first_of_get_point_list[i] < contest.get_point_list[i].length){
-      const tmp = contest.get_point_list[i][contest.first_of_get_point_list[i]];
-
-      if(tmp.elapsed >= now){
-        break;
-      }
-
-      contest.first_of_get_point_list[i]++;
-
-      if(contest.is_under_same_scores[tmp.key]){
-        contest.is_under_same_scores[tmp.key] = false;
-
-        my.realtime_rank++;
-
-        if(contest.is_rated_list[tmp.key]){
-          my.realtime_rated_rank++;
-        }
-      }else if(contest.realtime_score_list[tmp.key] < my.vc.score && my.vc.score < contest.realtime_score_list[tmp.key] + contest.task_scores[i]){
-        my.realtime_rank++;
-
-        if(contest.is_rated_list[tmp.key]){
-          my.realtime_rated_rank++;
-        }
-      }
-
-      contest.realtime_score_list[tmp.key] += contest.task_scores[i];
-
-      if(contest.realtime_score_list[tmp.key] == my.vc.score){
-        contest.is_under_same_scores[tmp.key] = true;
-      }else{
-        contest.is_under_same_scores[tmp.key] = false;
-      }
-    }
-  }
-
-}
-
-async function get_my_virtual_contest_status(){
-  let ret = null;
-  let error = true;
-  let is_joining_vc = false;
-
-  await fetch(contest.url + '/standings/virtual/json')
-    .then(function(response) {
-      return response.json();
-    })
-    .then(function(virtual_standings) {
-
-      let is_break = false;
-      virtual_standings.StandingsData.forEach(data => {
-        if(is_break){
-          return;
-        }
-
-        if(data.UserScreenName === my.user_name){
-          error = false;
-
-          let elp = data.Additional['standings.virtualElapsed'];
-          if(elp > 0){
-            is_joining_vc = true;
-            elp /= 1000000000;
-
-            if((my.vc.end_time == null) && (contest.duration != null)){
-              my.vc.end_time = new Date();
-              my.vc.end_time.setSeconds(my.vc.end_time.getSeconds() - elp);
-              my.vc.end_time.setSeconds(0);
-              my.vc.end_time.setMilliseconds(0);
-              my.vc.end_time.setMinutes(my.vc.end_time.getMinutes() + contest.duration);
-            }
-          }
-
-          ret = {score : data.TotalResult.Score/100, valid_elapse : data.TotalResult.Elapsed/1000000000, elapse : elp, accepted : data.TotalResult.Accepted};
-          is_break = true;
-          return;
-        }
-      });
-
-    })
-    .catch();
-
-    contest.error = error;
-    my.is_joining_vc = is_joining_vc;
-    return ret;
-}
-
-async function get_performance_list(){
-  let perfs = [];
-
-  await fetch(contest.url + '/results/json')
-  .then(function(response) {
-    return response.json();
-  })
-  .then(function(results) {
-
-    let perf = -1;
-
-    results.forEach(data => {
-
-      if(data.IsRated == false){
-        return;
-      }
-
-      perf = data.Performance;
-      if(perf < 400){
-        perf = Math.round(400.0 / Math.exp((400.0-perf) / 400));
-      }
-
-      perfs.push(perf);
-    });
-
-    if(perf != -1){
-      perfs.push(parseInt(perf/2));
-    }
-  })
-  .catch(error => {
-    contest.error = true;
-  });
-
-  return perfs;
-};
-
-async function get_standings_data(){
-  let sbs = [[], []];
-  let tasks;
-  contest.is_rated_list = [];
-  contest.final_submission_number = 0;
-
-  await fetch(contest.url + '/standings/json')
-  .then(function(response) {
-    return response.json();
-  })
-  .then(function(results) {
-
-    contest.task_number = results.TaskInfo.length;
-    tasks = Array(contest.task_number);
-    contest.task_scores = Array(contest.task_number);
-    let task_names = new Object();
-    for(let i = 0; i < contest.task_number; i++){
-      tasks[i] = [];
-      task_names[results.TaskInfo[i].TaskScreenName] = i;
-    }
-
-    let cnt_isRated = 0;
-    let tmp_rank = -1;
-
-    results.StandingsData.forEach(data => {
-
-      if(data.TotalResult.Count == 0){
-        return;
-      }
-
-      contest.final_submission_number++;
-
-      if(sbs[0][sbs[0].length-1] != data.Rank){
-        sbs[0].push([data.Rank, data.TotalResult.Score / 100, data.TotalResult.Elapsed / 1000000000]);
-      }
-
-      let tmp_tasks = [];
-      Object.keys(data.TaskResults).forEach(function (key) {
-        if(data.TaskResults[key].Status != 1){
-          return;
-        }
-        contest.task_scores[task_names[key]] = data.TaskResults[key].Score/100;
-
-        tmp_tasks.push({key : contest.final_submission_number-1, elapsed : data.TaskResults[key].Elapsed / 1000000000, penalty : data.TaskResults[key].Penalty, task_ind : task_names[key]});
-      });
-
-      tmp_tasks.sort((a, b) => a.elapsed - b.elapsed);
-      let cnt_p = 0;
-      for(let i = 0; i < tmp_tasks.length; i++){
-        cnt_p += tmp_tasks[i].penalty;
-
-        tasks[tmp_tasks[i].task_ind].push({key : contest.final_submission_number-1, elapsed : tmp_tasks[i].elapsed + cnt_p * contest.penalty});
-      }
-
-      contest.is_rated_list.push(data.IsRated);
-
-      if(data.IsRated == false){
-        return;
-      }
-      cnt_isRated++;
-
-      if(sbs[1][sbs[1].length-1] != data.Rank){
-        sbs[1].push([cnt_isRated, data.TotalResult.Score / 100, data.TotalResult.Elapsed / 1000000000]);
-      }
-    });
-
-    if(contest.submission_person_number > 0){
-      sbs[0].push([contest.submission_person_number+1, -1, 1000000000]);
-    }
-    if(cnt_isRated > 0){
-      sbs[1].push([cnt_isRated+1, -1, 1000000000]);
-    }
-  })
-  .catch(error => {
-    contest.error = true;
-    return null;
-  });
-
-  for(let i = 0; i < contest.task_number; i++){
-    tasks[i].sort((a, b) => a.elapsed - b.elapsed);
-  }
-
-  contest.realtime_score_list = Array(contest.final_submission_number).fill(0);
-  contest.is_under_same_scores = Array(contest.final_submission_number).fill(false);
-
-  contest.final_submission_number++;
-
-  return [sbs, tasks];
-}
-
-function get_final_rank(){
-  if(!contest.final_score_list.length){
-    return null;
-  }
-
-  return get_rank(contest.final_score_list);
-}
-
-function get_final_rated_rank(){
-  if(!contest.final_rated_score_list.length){
-    return null;
-  }
-
-  return get_rank(contest.final_rated_score_list);
-}
-
-function get_final_perf(rated_rank){
-  if(rated_rank == null || (!contest.performance_list.length)){
-    return null;
-  }
-
-  return contest.performance_list[my.final_rated_rank-1];
-}
-
-function get_rank(score_board){
-
-  const l = lower_bound(score_board)+1;
-  const r = upper_bound(score_board)-1;
-
-  return binarySearch_getting_rank(l, r, score_board);
-}
-
-function lower_bound(score_board){
-  let l = 0;
-  let r = score_board.length-1;
-
-  while(l <= r){
-    let m = Math.trunc((l+r)/2);
-
-    if(score_board[m][1] > my.vc.score){
-      l = m+1;
-    }else{
-      r = m-1;
-    }
-  }
-
-  return r;
-}
-function upper_bound(score_board){
-  let l = 0;
-  let r = score_board.length-1;
-
-  while(l <= r){
-    let m = Math.trunc((l+r)/2);
-
-    if(score_board[m][1] >= my.vc.score){
-      l = m+1;
-    }else{
-      r = m-1;
-    }
-  }
-
-  return l;
-}
-
-function binarySearch_getting_rank(l, r, score_board){
-
-  while(l <= r){
-    let m = Math.trunc((l+r)/2);
-
-    if(score_board[m][2] < my.vc.valid_elapse){
-      l = m+1;
-    }else{
-      r = m-1;
-    }
-  }
-
-  return score_board[l][0];
-}
-
-function get_perf(my_rank){
-  let ret = null;
-  if(0 < my_rank <= contest.performance_list.length){
-    ret = contest.performance_list[my_rank-1];
-  }
-
-  return ret;
+function getResults(){
+  return {contest : contestInfo.getResults(), my : myInfo.getResults(), opt : opt_acvc.getResults()};
 }
 
 // 現時点でのruleをクリア(removeRules)して
