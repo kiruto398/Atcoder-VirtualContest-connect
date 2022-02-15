@@ -33,5 +33,13 @@ https://chrome.google.com/webstore/detail/atcoder-virtualcontest-co/cedjfjpgichj
 2022/1/12 Ver1.1.1.0
 
  ・バーチャル順位表に最終的な成績をツイートするボタンの追加
+ 
+ 2022/2/15 Ver1.1.2.0
+ 
+ ・バーチャル順位表に、順位を参加者すべてかRatedのみを切り替えるボタンの追加
+ 
+ ・プログラムの全体な書き方を変更
+ 
+ ・GitHubのpopup.jsとpopup.htmlが入れ替わっていた問題を解決
 
 # 確認済のバグ
