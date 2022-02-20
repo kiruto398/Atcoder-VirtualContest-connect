@@ -1,14 +1,14 @@
 {
   "name": "AtCoder VirtualContest-Connect",
   "short_name": "acvc-connect",
-  "version": "1.1.2.0",
+  "version": "1.1.2.1",
   "manifest_version": 2,
   "description": "バーチャルコンテストの結果をコンテスト本番の結果につなげる",
   "icons": {
     "128": "icons/icon128.png"
   },
   "permissions": ["declarativeContent"],
-  "page_action": {
+  "browser_action": {
     "default_icon": "icons/icon48.png",
     "default_title": "acvc-connect",
     "default_popup": "popup.html"
@@ -22,5 +22,8 @@
   }],
   "background": {
     "scripts": ["background.js"]
-  }
+  },
+  "web_accessible_resources": [
+    "resources/*.png"
+  ]
 }
