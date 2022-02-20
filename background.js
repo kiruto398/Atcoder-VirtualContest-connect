@@ -22,9 +22,9 @@ class ContestInfo{
   }
 
   initializeRealtime(){
-    this.indexOfTasksAcElapses.fill(0);
-    this.realtimeScores.fill(0);
-    this.isUnderSameScores.fill(false);
+    this.indexOfTasksAcElapses = new Array(this.taskNum).fill(0);
+    this.realtimeScores = Array(this.entryCount).fill(0);
+    this.isUnderSameScores = Array(this.entryCount).fill(false);
   }
 
   async setAsyncData(){
@@ -52,7 +52,6 @@ class ContestInfo{
     .catch(e => {
       this.error = true;
       this.url = null;
-      this.loading = false;
     });
 
   }
@@ -510,25 +509,56 @@ class MyInfo{
 const myInfo = new MyInfo();
 
 class Opt_acvc{
-  constructor(displayRank = 0){
-    this.displayRank = displayRank;
+  constructor(){
+    this.displayRated = 0;
+    this.displayFinalPop = 0;
+    this.displayFinalCon = 0;
   }
 
-  setDisplayRank(displayRank){
-    this.displayRank = displayRank;
+  setDisplayRated(displayRated){
+    this.displayRated = displayRated;
+  }
+  setDisplayFinalPop(displayFinalPop){
+    this.displayFinalPop = displayFinalPop;
+  }
+  setDisplayFinalCon(displayFinalCon){
+    this.displayFinalCon = displayFinalCon;
   }
 
   getResults(){
     let ret = {
-      displayRank: this.displayRank
+      displayRated: this.displayRated,
+      displayFinalPop: this.displayFinalPop,
+      displayFinalCon: this.displayFinalCon
     }
     return ret;
   }
 }
 const opt_acvc = new Opt_acvc();
 
+let timerSendContent;
+let senderVcTabId;
+
 chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
-   if(request.mode === "content"){
+   if(request.mode === "setContest"){
+     clearInterval(timerSendContent);
+     timerSendContent = setInterval(async function(){
+       await myInfo.update();
+       if(contestInfo.error){
+         myInfo.initialize(myInfo.userName);
+       }
+
+       let accept_vc_url = /^https:\/\/atcoder.jp\/contests\/[^/]+\/standings\/virtual$/;
+       let valid_vc_url = request.now_url.match(accept_vc_url);
+       if(valid_vc_url){
+         senderVcTabId = sender.tab.id;
+       }
+
+       if(senderVcTabId){
+         chrome.tabs.sendMessage(senderVcTabId, ['refreshScoreAcvc', getResults()]);
+       }
+      }, 1000);
+
      if(contestInfo.error | (contestInfo.url !== request.contest_url)){
        contestInfo.url = request.contest_url;
        const urlSplit = request.contest_url.split('/');
@@ -541,26 +571,20 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 
      await myInfo.update();
 
-     if(!myInfo.vc.elapse){
-       return;
-     }
-
-     const accept_vc_url = /^https:\/\/atcoder.jp\/contests\/.+\/standings\/virtual$/;
-     const valid_vc_url = request.now_url.match(accept_vc_url);
-     if(!valid_vc_url){
-       return;
-     }
-
-     chrome.tabs.sendMessage(sender.tab.id, getResults());
-   }else if(request.mode === "popup"){
+     chrome.tabs.sendMessage(sender.tab.id, ['refreshScoreAcvc', getResults()]);
+   }else if(request.mode === "update"){
      await myInfo.update();
 
      if(contestInfo.error){
        myInfo.initialize(myInfo.userName);
        return;
      }
-   }else{
-     opt_acvc.setDisplayRank(request.displayRank);
+   }else if(request.mode === "opt_rated"){
+     opt_acvc.setDisplayRated(request.displayRated);
+   }else if(request.mode === "opt_final_pop"){
+     opt_acvc.setDisplayFinalPop(request.displayFinalPop);
+   }else if(request.mode === "opt_final_content"){
+     opt_acvc.setDisplayFinalCon(request.displayFinalCon);
    }
 
    return;
@@ -569,20 +593,3 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
 function getResults(){
   return {contest : contestInfo.getResults(), my : myInfo.getResults(), opt : opt_acvc.getResults()};
 }
-
-// 現時点でのruleをクリア(removeRules)して
-chrome.declarativeContent.onPageChanged.removeRules(undefined, function() {
-  // 新たなruleを追加する
-  chrome.declarativeContent.onPageChanged.addRules([{
-    conditions: [
-      // アクションを実行する条件
-      new chrome.declarativeContent.PageStateMatcher({
-        pageUrl: {hostEquals: 'atcoder.jp'},
-      })
-    ],
-    // 実行するアクション
-    actions: [
-      new chrome.declarativeContent.ShowPageAction()
-    ]
-  }]);
-});
