@@ -41,5 +41,12 @@ https://chrome.google.com/webstore/detail/atcoder-virtualcontest-co/cedjfjpgichj
  ・プログラムの全体な書き方を変更
  
  ・GitHubのpopup.jsとpopup.htmlが入れ替わっていた問題を解決
+ 
+ 2022/2/20 Ver1.1.2.1
+ 
+ ・バーチャル順位表、popupの個別に終了時の成績を非表示にする機能を追加
+ 
+ ・バーチャル順位表の現在の成績が自動で更新するように変更
+ 
 
 # 確認済のバグ
