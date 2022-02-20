@@ -1,11 +1,15 @@
 "use strict";
 let div_acvc = document.getElementById('add_by_acvc');
-let element_twi_all = document.getElementById('acvc_twi_all');
-let element_twi_rated = document.getElementById('acvc_twi_rated');
+let element_twi = document.getElementById('acvc_twi');
 let element_final = document.getElementById('acvc_final');
-let element_opt = document.getElementById('acvc_opt');
+let btn_opt_rated = document.getElementById('acvc_btn_opt_rated');
+let btn_opt_final = document.getElementById('acvc_btn_opt_final');
+let element_realtime = document.getElementById('acvc_real');
 
-let response_acvc = {};
+let element_twi_replaced;
+let src_element_twi;
+
+let response_acvc;
 
 (function(){
 
@@ -16,6 +20,7 @@ let response_acvc = {};
     return;
   }
 
+
   let my_userName = get_my_userName();
   if(!my_userName){
     return;
@@ -24,17 +29,23 @@ let response_acvc = {};
   const contest_duration = get_contest_duration();
   const href = location.href;
 
-  chrome.runtime.sendMessage({mode : "content", contest_duration : contest_duration, contest_url : contest_url[0], now_url : href, user_name : my_userName});
+  chrome.runtime.sendMessage({mode : "setContest", contest_duration : contest_duration, contest_url : contest_url[0], now_url : href, user_name : my_userName});
 })();
 
-chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
-  const accept_vc_url = /^https:\/\/atcoder.jp\/contests\/.+\/standings\/virtual$/;
-  const valid_vc_url = location.href.match(accept_vc_url);
-  if(valid_vc_url == null){
+chrome.runtime.onMessage.addListener(request => {
+  if(request[0] !== 'refreshScoreAcvc'){
+    return;
+  }
+  if(!Number.isInteger(request[1].my.score)){
+    return;
+  }
+  let accept_vc_url = /^https:\/\/atcoder.jp\/contests\/[^/]+\/standings\/virtual$/;
+  let valid_vc_url = location.href.match(accept_vc_url);
+  if(!valid_vc_url){
     return;
   }
 
-  response_acvc = response;
+  response_acvc = request[1];
 
   if(!div_acvc){
     div_acvc = document.createElement('div');
@@ -42,104 +53,116 @@ chrome.runtime.onMessage.addListener((response, sender, sendResponse) => {
     div_acvc.style = 'padding: 10px; margin-bottom: 10px; border: 1px dotted #333333; border-radius: 5px;';
     document.getElementById('vue-standings').childNodes[4].after(div_acvc);
 
-    const optTwi = document.createElement('p');
-    optTwi.style = 'margin: 0; position: relative;';
+    const p_opt = document.createElement('p');
+    p_opt.id = 'acvc_twi';
+    p_opt.style = 'margin: 0; position: relative;';
 
-    const sc = document.createElement('script');
-    sc.src = 'https://platform.twitter.com/widgets.js'
-    sc.charset = 'utf-8';
-    sc.innerHTML = 'async';
-    optTwi.appendChild(sc);
+    element_twi = document.createElement('a');
+    element_twi.style.margin = '0';
+    element_twi.style.position = 'absolute';
+    element_twi.style.right = '5px';
+    element_twi.innerHTML = '<img onmouseover="this.style = \'opacity: 0.6\';" onmouseout="this.style = \'opacity: 1.0\';" src="' + chrome.runtime.getURL('resources/tw.png') + '" alt="Tweet"></a>';
+    p_opt.appendChild(element_twi);
 
-    element_twi_all = document.createElement('p');
-    element_twi_all.id = 'acvc_twi_all';
-    element_twi_all.style.margin = '0';
-    element_twi_all.style.position = 'absolute';
-    element_twi_all.style.right = '5px';
-    element_twi_all.style['z-index'] = (response.opt.displayRank) ? '1' : '2';
-    optTwi.appendChild(element_twi_all);
-
-    element_twi_rated = document.createElement('p');
-    element_twi_rated.id = 'acvc_twi_rated';
-    element_twi_rated.style.margin = '0';
-    element_twi_rated.style.position = 'absolute';
-    element_twi_rated.style.right = '5px';
-    element_twi_rated.style['z-index'] = (response.opt.displayRank) ? '2' : '1';
-    optTwi.appendChild(element_twi_rated);
-
-    element_opt = document.createElement('button');
-    element_opt.id = 'acvc_opt';
-    element_opt.type = 'button';
-    element_opt.style.position = 'relative';
-    element_opt.textContent = (response.opt.displayRank) ? '順位：Rated' : '順位：All';
-    element_opt.onclick = function(){
-      if(response_acvc.opt.displayRank){
+    btn_opt_rated = document.createElement('button');
+    btn_opt_rated.id = 'acvc_btn_opt_rated';
+    btn_opt_rated.style.position = 'relative';
+    btn_opt_rated.style.margin = '2px';
+    btn_opt_rated.onclick = function(){
+      if(response_acvc.opt.displayRated){
         this.textContent = '順位：All';
-        element_twi_all.style['z-index'] = 2;
-        element_twi_rated.style['z-index'] = 1;
-        response_acvc.opt.displayRank = 0;
+        response_acvc.opt.displayRated = 0;
       }else{
       this.textContent = '順位：Rated';
-      element_twi_all.style['z-index'] = 1;
-      element_twi_rated.style['z-index'] = 2;
-      response_acvc.opt.displayRank = 1;
+      response_acvc.opt.displayRated = 1;
       }
 
-      element_final.innerHTML = '終了時の順位 : ' + finalRankCountPerf();
+      element_final.innerHTML = finalRankCountPerf();
       if(element_realtime){
-        element_realtime.innerHTML = '現在の順位 : ' + realtimeRankCountPerf();
+        element_realtime.innerHTML = realtimeRankCountPerf();
+      }
+      element_twi.href = getTwiHref();
+
+      chrome.runtime.sendMessage({mode : "opt_rated", displayRated: response_acvc.opt.displayRated});
+    };
+    p_opt.appendChild(btn_opt_rated);
+
+    btn_opt_final = document.createElement('button');
+    btn_opt_final.id = 'acvc_btn_opt_final';
+    btn_opt_final.style.position = 'relative';
+    btn_opt_final.style.margin = '2px';
+    btn_opt_final.onclick = function(){
+      if(response_acvc.opt.displayFinalCon){
+        this.textContent = '終了時：表示';
+        response_acvc.opt.displayFinalCon = 0;
+        element_final.hidden = '';
+      }else{
+        this.textContent = '終了時：非表示';
+        response_acvc.opt.displayFinalCon = 1;
+        element_final.hidden = 'hidden';
       }
 
-      chrome.runtime.sendMessage({mode : "opt", displayRank: response_acvc.opt.displayRank});
-    };
-    optTwi.appendChild(element_opt);
+      chrome.runtime.sendMessage({mode : "opt_final_content", displayFinalCon: response_acvc.opt.displayFinalCon});
+    }
+    p_opt.appendChild(btn_opt_final);
 
-    div_acvc.appendChild(optTwi);
+    div_acvc.appendChild(p_opt);
 
     element_final = document.createElement('p');
     element_final.id = 'acvc_final';
     element_final.className = 'text-center';
     element_final.style = 'padding: 0px 0px 10px; font-size: 30px;';
     div_acvc.childNodes[0].before(element_final);
+
+    element_realtime = document.createElement('p');
+    element_realtime.className = 'text-center';
+    element_realtime.style = 'padding: 0px 0px 10px; font-size: 30px;';
+    div_acvc.childNodes[0].before(element_realtime);
   }
 
-  element_twi_all.innerHTML = createTwiAllText();
-  element_twi_rated.innerHTML = createTwiRatedText();
-  element_final.innerHTML = '終了時の順位 : ' + finalRankCountPerf();
-
-  let element_realtime = document.getElementById('acvc_real');
-  if(response.my.elapse > 0){
-    if(!element_realtime){
-      element_realtime = document.createElement('p');
-      element_realtime.className = 'text-center';
-      element_realtime.style = 'padding: 0px 0px 10px; font-size: 30px;';
-      div_acvc.childNodes[0].before(element_realtime);
-    }
-
-    element_realtime.innerHTML = '現在の順位 : ' + realtimeRankCountPerf();
+  if(response_acvc.opt.displayFinalCon){
+    btn_opt_final.textContent = '終了時：非表示';
+    element_final.hidden = 'hidden';
   }else{
-    if(element_realtime){
-      element_realtime.remove();
-    }
+    btn_opt_final.textContent = '終了時：表示';
+    element_final.hidden = '';
+  }
+
+  element_twi.href = getTwiHref();
+  btn_opt_rated.textContent = (response_acvc.opt.displayRated) ? '順位：Rated' : '順位：All';
+  element_final.innerHTML = finalRankCountPerf();
+  element_realtime.innerHTML = realtimeRankCountPerf();
+
+
+  if(response_acvc.my.elapse > 0){
+    element_realtime.hidden = '';
+  }else{
+    element_realtime.hidden = 'hidden';
   }
 });
 
 function finalRankCountPerf(){
-  if(response_acvc.opt.displayRank){
-    return rankCountPerf(response_acvc.my.finalRatedRank, response_acvc.contest.ratedEntryCount, response_acvc.my.finalPerf);
+  if(response_acvc.opt.displayRated){
+    return '終了時の順位 : ' + rankCountPerf(response_acvc.my.finalRatedRank, response_acvc.contest.ratedEntryCount, response_acvc.my.finalPerf);
   }else {
-    return rankCountPerf(response_acvc.my.finalRank, response_acvc.contest.entryCount, response_acvc.my.finalPerf);
+    return '終了時の順位 : ' + rankCountPerf(response_acvc.my.finalRank, response_acvc.contest.entryCount, response_acvc.my.finalPerf);
   }
 }
 function realtimeRankCountPerf(){
-  if(response_acvc.opt.displayRank){
-    return rankCountPerf(response_acvc.my.realtimeRatedRank, response_acvc.contest.ratedEntryCount, response_acvc.my.realtimePerf);
+  if(response_acvc.opt.displayRated){
+    return '現在の順位 : ' + rankCountPerf(response_acvc.my.realtimeRatedRank, response_acvc.contest.ratedEntryCount, response_acvc.my.realtimePerf);
   }else {
-    return rankCountPerf(response_acvc.my.realtimeRank, response_acvc.contest.entryCount, response_acvc.my.realtimePerf);
+    return '現在の順位 : ' + rankCountPerf(response_acvc.my.realtimeRank, response_acvc.contest.entryCount, response_acvc.my.realtimePerf);
   }
 }
 
-function rankCountPerf(rank = 1, count = 1, perf){
+function rankCountPerf(rank, count, perf){
+  if(!rank){
+    rank = 1;
+  }
+  if(!count){
+    count = 1;
+  }
 
   let ret = rank + ' / ' + count + '　Perf : ';
   if(perf){
@@ -152,11 +175,17 @@ function rankCountPerf(rank = 1, count = 1, perf){
   return ret;
 }
 
-function createTwiAllText(){
-  return '<a href="https://twitter.com/intent/tweet?url=%0D%0A&text=' + response_acvc.contest.name + ' バチャ%0D%0A成績 ' + response_acvc.my.acceptedNum + '完 ' + response_acvc.my.score + ' (' + mm_ss(response_acvc.my.validElapse) + ')%0D%0A順位(All): ' + response_acvc.my.finalRank + ' / ' + response_acvc.contest.entryCount + '%0D%0APerf: ' + ((response_acvc.my.finalPerf || response_acvc.my.finalPerf === 0) ? response_acvc.my.finalPerf : ' - ') + '&hashtags=AtCoder,' + response_acvc.contest.name + ',AC_VCC" class="twitter-share-button"> Tweet</a>';
-}
-function createTwiRatedText(){
-  return '<a href="https://twitter.com/intent/tweet?url=%0D%0A&text=' + response_acvc.contest.name + ' バチャ%0D%0A成績 ' + response_acvc.my.acceptedNum + '完 ' + response_acvc.my.score + ' (' + mm_ss(response_acvc.my.validElapse) + ')%0D%0A順位(Rated): ' + response_acvc.my.finalRatedRank + ' / ' + response_acvc.contest.ratedEntryCount + '%0D%0APerf: ' + ((response_acvc.my.finalPerf || response_acvc.my.finalPerf === 0) ? response_acvc.my.finalPerf : ' - ') + '&hashtags=AtCoder,' + response_acvc.contest.name + ',AC_VCC" class="twitter-share-button"> Tweet</a>';
+function getTwiHref(){
+  const contestName = response_acvc.contest.name;
+  const acceptedNum = addCommas(response_acvc.my.acceptedNum);
+  const score = addCommas(response_acvc.my.score);
+  const time = mm_ss(response_acvc.my.validElapse);
+  const display = response_acvc.opt.displayRated ? 'Rated' : 'All';
+  const rank = addCommas(response_acvc.opt.displayRated ? response_acvc.my.finalRatedRank : response_acvc.my.finalRank);
+  const entryCnt = addCommas(response_acvc.opt.displayRated ? response_acvc.contest.ratedEntryCount : response_acvc.contest.entryCount);
+  const perf = addCommas(response_acvc.my.finalPerf);
+
+  return `https://twitter.com/intent/tweet?url=%0D%0A&text=${contestName} Virtual%0D%0A成績 ${acceptedNum}完 ${score} (${time})%0D%0A順位(${display}): ${rank} / ${entryCnt}%0D%0APerf: ${perf}&hashtags=AtCoder,${contestName},AC_VCC`;
 }
 
 function get_color(rate){
@@ -226,5 +255,13 @@ function mm_ss(time){
 
   const ret = m + ":" + s;
 
+  return ret;
+}
+
+function addCommas(num){
+  let ret = ' - ';
+  if(Number.isInteger(num)){
+    ret = num.toLocaleString();
+  }
   return ret;
 }
