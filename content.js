@@ -61,6 +61,8 @@ chrome.runtime.onMessage.addListener(request => {
     element_twi.style.margin = '0';
     element_twi.style.position = 'absolute';
     element_twi.style.right = '5px';
+    element_twi.target='_blank';
+    element_twi.rel='noopener noreferrer';
     element_twi.innerHTML = '<img onmouseover="this.style = \'opacity: 0.6\';" onmouseout="this.style = \'opacity: 1.0\';" src="' + chrome.runtime.getURL('resources/tw.png') + '" alt="Tweet"></a>';
     p_opt.appendChild(element_twi);
 
