@@ -30,6 +30,44 @@ let response_acvc;
   const href = location.href;
 
   chrome.runtime.sendMessage({mode : "setContest", contest_duration : contest_duration, contest_url : contest_url[0], now_url : href, user_name : my_userName});
+
+  let isStayingVirtual = /^https:\/\/atcoder.jp\/contests\/[^/]+\/virtual$/.test(location.href);
+  if(!isStayingVirtual){
+    return;
+  }
+
+  const element_twi_virtual = document.createElement('a');
+  element_twi_virtual.href = 'https://atcoder.jp/home';
+  element_twi_virtual.target='_blank';
+  element_twi_virtual.rel='noopener noreferrer';
+  element_twi_virtual.innerHTML = '<img onmouseover="this.style = \'opacity: 0.6\';" onmouseout="this.style = \'opacity: 1.0\';" src="' + chrome.runtime.getURL('resources/tw.png') + '" alt="Tweet"></a>';
+
+  const p_element_twi_virtual = document.createElement('p');
+  p_element_twi_virtual.style['text-align'] = 'center';
+
+  const nowUrl = location.href;
+  const contestSp = contest_url[0].split('/');
+  const contestName = contestSp[contestSp.length-1].toUpperCase();
+  try{
+    element_twi_virtual.onclick = function(){
+      let [yyyymmdd, hhmmss] = document.getElementById('vst-tmp').value.split(' ');
+      yyyymmdd = yyyymmdd.replaceAll('-', '/');
+      this.href = `https://twitter.com/intent/tweet?url=%0D%0A&text=${contestName} Virtual参加%0D%0A${yyyymmdd} ${hhmmss}～%0D%0A%0D%0A${nowUrl}&hashtags=AtCoder,${contestName},AC_VCC`;
+    }
+    p_element_twi_virtual.appendChild(element_twi_virtual);
+    document.getElementById('form-register').appendChild(p_element_twi_virtual);
+  }catch{
+    element_twi_virtual.onclick = function(){
+      let [yyyymmdd, hhmmss] = document.getElementById('virtual-timer').parentNode.previousElementSibling.childNodes[1].firstElementChild.firstElementChild.textContent.split(' ');
+      yyyymmdd = yyyymmdd.replaceAll('-', '/');
+      console.log(yyyymmdd);
+      console.log(hhmmss);
+      this.href = `https://twitter.com/intent/tweet?url=%0D%0A&text=${contestName} Virtual参加%0D%0A${yyyymmdd} ${hhmmss}～%0D%0A%0D%0A${nowUrl}&hashtags=AtCoder,${contestName},AC_VCC`;
+    }
+    p_element_twi_virtual.appendChild(element_twi_virtual);
+    document.getElementById('submit').parentNode.appendChild(p_element_twi_virtual);
+  }
+
 })();
 
 chrome.runtime.onMessage.addListener(request => {
@@ -39,9 +77,9 @@ chrome.runtime.onMessage.addListener(request => {
   if(!Number.isInteger(request[1].my.score)){
     return;
   }
-  let accept_vc_url = /^https:\/\/atcoder.jp\/contests\/[^/]+\/standings\/virtual$/;
-  let valid_vc_url = location.href.match(accept_vc_url);
-  if(!valid_vc_url){
+
+  let isStayingStandingsVirtual = /^https:\/\/atcoder.jp\/contests\/[^/]+\/standings\/virtual$/.test(location.href);
+  if(!isStayingStandingsVirtual){
     return;
   }
 
