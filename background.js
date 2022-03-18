@@ -85,8 +85,6 @@ class ContestInfo{
       if(performances.length > 0){
         performances.push(parseInt(performances[performances.length-1]/2));
       }
-
-      console.log('perfCount: ' + cnt);
     })
     .catch(error => {
       console.log(error);
@@ -217,6 +215,7 @@ class MyInfo{
         validElapse : null,
         elapse : null
     }
+    this.delay = Date.now();
   }
 
   initialize(userName = null){
@@ -243,40 +242,54 @@ class MyInfo{
       return;
     }
 
-    const updatedMyVcScore = await this.#fetchMyVcScore();
-    if(!updatedMyVcScore.elapse){
-      this.initialize(this.userName);
-      return;
-    }else if(updatedMyVcScore.elapse < this.vc.elapse){
-      this.initializeRealtime(this.userName);
-      contestInfo.initializeRealtime();
-    }
+    let updatedMyVcScore;
+    if(this.delay <= Date.now()){
+      this.delay = Date.now()+3800;
+      updatedMyVcScore = await this.#fetchMyVcScore();
 
-    this.vc.elapse = updatedMyVcScore.elapse;
-
-    if(this.vc.score !== updatedMyVcScore.score){
-      this.vc.score = updatedMyVcScore.score;
-      this.vc.validElapse = updatedMyVcScore.validElapse;
-      this.vc.acceptedNum = updatedMyVcScore.acceptedNum;
-      this.vc.endTime = updatedMyVcScore.endTime;
-      this.vc.penalty = updatedMyVcScore.penalty;
-
-      this.finalRank = this.#getFinalRank();
-      this.finalRatedRank = this.#getFinalRatedRank();
-      this.finalPerf = contestInfo.performances[this.finalRatedRank-1];
-      if(!this.finalPerf){
-        this.finalPerf = contestInfo.performances[contestInfo.performances.length-2];
+      if(updatedMyVcScore.elapse === null){
+        this.initialize(this.userName);
+        contestInfo.error = true;
+        contestInfo.initializeRealtime();
+        return;
+      }else if(updatedMyVcScore.elapse < this.vc.elapse){
+        this.initializeRealtime(this.userName);
+        contestInfo.initializeRealtime();
+      }else if(updatedMyVcScore.elapse === 0){
+        this.initialize(this.userName);
+        contestInfo.initializeRealtime();
       }
 
-      if(this.vc.elapse > 0){
-        this.#fitBackwardTo(this.vc.validElapse);
-        this.#fitForwardTo(this.vc.validElapse);
+      this.vc.elapse = updatedMyVcScore.elapse;
 
-        if(this.vc.score === 0){
-          this.#updateMyRealtimeRankZero();
-        }else{
-          this.#updateMyRealtimeRankAny();
+      if(this.vc.score !== updatedMyVcScore.score && this.vc.elapse !== 0){
+        this.vc.score = updatedMyVcScore.score;
+        this.vc.validElapse = updatedMyVcScore.validElapse;
+        this.vc.acceptedNum = updatedMyVcScore.acceptedNum;
+        this.vc.endTime = updatedMyVcScore.endTime;
+        this.vc.penalty = updatedMyVcScore.penalty;
+
+        this.finalRank = this.#getFinalRank();
+        this.finalRatedRank = this.#getFinalRatedRank();
+        this.finalPerf = contestInfo.performances[this.finalRatedRank-1];
+        if(!this.finalPerf){
+          this.finalPerf = contestInfo.performances[contestInfo.performances.length-2];
         }
+
+        if(this.vc.elapse > 0){
+          this.#fitBackwardTo(this.vc.validElapse);
+          this.#fitForwardTo(this.vc.validElapse);
+
+          if(this.vc.score === 0){
+            this.#updateMyRealtimeRankZero();
+          }else{
+            this.#updateMyRealtimeRankAny();
+          }
+        }
+      }
+    }else{
+      if(this.vc.elapse > 0){
+        this.vc.elapse++;
       }
     }
 
@@ -294,6 +307,7 @@ class MyInfo{
   }
 
   async #fetchMyVcScore(){
+    console.log('fetch:MyVcScore');
     let ret = {
       score : null,
       validElapse : null,
@@ -342,7 +356,7 @@ class MyInfo{
 
       })
       .catch( e => {
-        console.log(e);
+        contestInfo.error = true;
       });
 
       return ret;
@@ -544,6 +558,7 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
      clearInterval(timerSendContent);
      timerSendContent = setInterval(async function(){
        await myInfo.update();
+
        if(contestInfo.error){
          myInfo.initialize(myInfo.userName);
        }
@@ -562,11 +577,17 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
      if(contestInfo.error | (contestInfo.url !== request.contest_url)){
        contestInfo.url = request.contest_url;
        const urlSplit = request.contest_url.split('/');
-       contestInfo.name = urlSplit[urlSplit.length-1];
+       contestInfo.name = urlSplit[urlSplit.length-1].toUpperCase();
        contestInfo.duration = request.contest_duration;
        myInfo.initialize(request.user_name);
 
        await contestInfo.setAsyncData();
+     }
+
+     if(contestInfo.error){
+       contestInfo.initialize();
+       clearInterval(timerSendContent);
+       return;
      }
 
      await myInfo.update();
