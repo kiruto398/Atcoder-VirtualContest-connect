@@ -48,5 +48,11 @@ https://chrome.google.com/webstore/detail/atcoder-virtualcontest-co/cedjfjpgichj
  
  ・バーチャル順位表の現在の成績が自動で更新するように変更
  
+ 2022/3/18 Ver1.1.2.3
+ 
+ ・バーチャル参加に告知ツイートボタンの追加
+ 
+ ・リクエスト頻度の削減
+ 
 
 # 確認済のバグ
