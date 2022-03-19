@@ -555,24 +555,25 @@ let senderVcTabId;
 
 chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
    if(request.mode === "setContest"){
-     clearInterval(timerSendContent);
-     timerSendContent = setInterval(async function(){
-       await myInfo.update();
+     if(!timerSendContent){
+       timerSendContent = setInterval(async function(){
+         await myInfo.update();
 
-       if(contestInfo.error){
-         myInfo.initialize(myInfo.userName);
-       }
+         if(contestInfo.error){
+           myInfo.initialize(myInfo.userName);
+         }
 
-       let accept_vc_url = /^https:\/\/atcoder.jp\/contests\/[^/]+\/standings\/virtual$/;
-       let valid_vc_url = request.now_url.match(accept_vc_url);
-       if(valid_vc_url){
-         senderVcTabId = sender.tab.id;
-       }
+         let accept_vc_url = /^https:\/\/atcoder.jp\/contests\/[^/]+\/standings\/virtual$/;
+         let valid_vc_url = request.now_url.match(accept_vc_url);
+         if(valid_vc_url){
+           senderVcTabId = sender.tab.id;
+         }
 
-       if(senderVcTabId){
-         chrome.tabs.sendMessage(senderVcTabId, ['refreshScoreAcvc', getResults()]);
-       }
-      }, 1000);
+         if(senderVcTabId){
+           chrome.tabs.sendMessage(senderVcTabId, ['refreshScoreAcvc', getResults()]);
+         }
+        }, 1000);
+      }
 
      if(contestInfo.error | (contestInfo.url !== request.contest_url)){
        contestInfo.url = request.contest_url;
@@ -590,7 +591,7 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
        return;
      }
 
-     await myInfo.update();
+     //await myInfo.update();
 
      chrome.tabs.sendMessage(sender.tab.id, ['refreshScoreAcvc', getResults()]);
    }else if(request.mode === "update"){
