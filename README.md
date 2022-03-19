@@ -3,6 +3,19 @@
 # install
 https://chrome.google.com/webstore/detail/atcoder-virtualcontest-co/cedjfjpgichjfeaaijciagaoggpagipg?hl=ja
 
+# popup
+
+ブラウザ右上のアイコンをクリックすることでポップアップが開きます。
+![スクリーンショット (221)](https://user-images.githubusercontent.com/52631675/159134900-98af3653-a579-4b5e-86ef-beff9a7bc6cb.png)
+
+
+アイコンが無い場合は拡張機能のアイコンから、VCCを固定化してください。
+![スクリーンショット (219)](https://user-images.githubusercontent.com/52631675/159134904-cf662cca-a6be-4ce7-a249-bfcca177191b.png)
+![スクリーンショット (220)](https://user-images.githubusercontent.com/52631675/159134908-12b1c6cd-a33c-4db9-abc4-ad58de0928f9.png)
+
+
+
+
 # アップデート履歴
 2021/8/4 Ver 1.1.0.0
 
@@ -53,6 +66,10 @@ https://chrome.google.com/webstore/detail/atcoder-virtualcontest-co/cedjfjpgichj
  ・バーチャル参加に告知ツイートボタンの追加
  
  ・リクエスト頻度の削減
+ 
+ 2022/3/20 Ver1.1.2.4
+ 
+ ・連続してコンテストのページにアクセスした場合に出る不具合の修正
  
 
 # 確認済のバグ
