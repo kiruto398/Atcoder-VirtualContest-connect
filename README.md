@@ -1,5 +1,10 @@
 # Atcoder-VirtualContest-connect
 
+AtCoderのバーチャルコンテストをコンテスト本番時と繋げる拡張機能です。
+
+バーチャルコンテストの成績をコンテスト本番で取った場合の順位やパフォーマンスを表示します。
+
+
 # install
 https://chrome.google.com/webstore/detail/atcoder-virtualcontest-co/cedjfjpgichjfeaaijciagaoggpagipg?hl=ja
 
@@ -13,6 +18,11 @@ https://chrome.google.com/webstore/detail/atcoder-virtualcontest-co/cedjfjpgichj
 ![スクリーンショット (219)](https://user-images.githubusercontent.com/52631675/159134904-cf662cca-a6be-4ce7-a249-bfcca177191b.png)
 ![スクリーンショット (220)](https://user-images.githubusercontent.com/52631675/159134908-12b1c6cd-a33c-4db9-abc4-ad58de0928f9.png)
 
+
+# バーチャル参加
+バーチャル参加の告知をツイートできます。
+![スクリーンショット (224)](https://user-images.githubusercontent.com/52631675/159155495-98f9ca22-b52d-4781-8960-2f38ae03cbda.png)
+![スクリーンショット (223)](https://user-images.githubusercontent.com/52631675/159155502-97ad25a0-dd13-4137-b130-600c7934b58a.png)
 
 
 
