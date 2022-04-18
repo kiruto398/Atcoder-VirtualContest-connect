@@ -8,23 +8,50 @@ class ContestInfo{
     this.duration = null;
     this.penalty = penalty;
     this.taskNum = null;
-    this.tackScores = null;
     this.entryCount = 0;
     this.ratedEntryCount = 0;
+
     this.finalScores = null;
     this.finalRatedScores = null;
     this.performances = null;
     this.isRatedList = null;
-    this.tasksAcElapses = null;
-    this.indexOfTasksAcElapses = null;
+
+    this.realtimeInd = 0;
+    this.submissions = null;
     this.realtimeScores = null;
-    this.isUnderSameScores = null;
+    this.realtimeElapsed = null;
+  }
+
+  initialize(penalty = 300){
+    this.error = true;
+    this.url = null;
+    this.name = null;
+    this.duration = null;
+    this.penalty = penalty;
+    this.taskNum = null;
+    this.entryCount = 0;
+    this.ratedEntryCount = 0;
+
+    this.finalScores = null;
+    this.finalRatedScores = null;
+    this.performances = null;
+    this.isRatedList = null;
+
+    this.realtimeInd = 0;
+    this.submissions = null;
+    this.realtimeScores = null;
+    this.realtimeElapsed = null;
   }
 
   initializeRealtime(){
-    this.indexOfTasksAcElapses = new Array(this.taskNum).fill(0);
-    this.realtimeScores = Array(this.entryCount).fill(0);
-    this.isUnderSameScores = Array(this.entryCount).fill(false);
+    this.realtimeInd = 0;
+
+    this.realtimeScores = [];
+    this.realtimeElapsed = [];
+    for(let i = 0; i < this.entryCount; i++){
+      this.realtimeScores[i] = 0;
+      this.realtimeElapsed[i] = 0;
+    }
   }
 
   async setAsyncData(){
@@ -36,22 +63,24 @@ class ContestInfo{
 
       this.finalScores = responses[1].finalScores;
       this.finalRatedScores = responses[1].finalRatedScores;
-      this.tasksAcElapses = responses[1].tasksAcElapses;
-      this.isRatedList = responses[1].isRatedList;
+
       this.entryCount = responses[1].entryCount;
       this.ratedEntryCount = responses[1].ratedEntryCount;
+      this.isRatedList = responses[1].isRatedList;
+
       this.taskNum = responses[1].taskNum;
+      this.submissions = responses[1].submissions;
 
-      this.indexOfTasksAcElapses = new Array(this.taskNum).fill(0);
-      this.realtimeScores = Array(this.entryCount).fill(0);
-      this.isUnderSameScores = Array(this.entryCount).fill(false);
+      this.initializeRealtime();
 
+      //バーチャル参加する自分の分参加人数加算
       this.entryCount++;
       this.ratedEntryCount++;
     })
     .catch(e => {
       this.error = true;
       this.url = null;
+      console.log(e);
     });
 
   }
@@ -81,7 +110,7 @@ class ContestInfo{
       }
 
       //コンテスト本番の最下位以下の順位には
-      //最下位のパフォーマンスの半分を当てはめる
+      //暫定的に最下位のパフォーマンスの半分を当てはめる
       if(performances.length > 0){
         performances.push(parseInt(performances[performances.length-1]/2));
       }
@@ -95,9 +124,9 @@ class ContestInfo{
 
   async #fetchStandings(){
     let ret = {
+      submissions : [],
       finalScores : [],
       finalRatedScores : [],
-      tasksAcElapses : [],
       isRatedList : [],
       entryCount : 0,
       ratedEntryCount : 0,
@@ -111,45 +140,44 @@ class ContestInfo{
     .then(standingsData => {
 
       ret.taskNum = standingsData.TaskInfo.length;
-      let taskName2Index = {};
-      for(let i = 0, len = ret.taskNum; i < len; i++){
-        ret.tasksAcElapses[i] = [];
-        taskName2Index[standingsData.TaskInfo[i].TaskScreenName] = i;
-      }
 
-      ret.entryCount = standingsData.StandingsData.length;
-      for(let i = 0; i < ret.entryCount; i++){
-        const standings = standingsData.StandingsData[i];
+      ret.entryCount = 0;
+      for(let standings of standingsData.StandingsData){
+        ret.entryCount++;
 
-        if(ret.finalScores.length === 0 | (ret.finalScores[ret.finalScores.length-1] != standings.Rank)){
-          ret.finalScores.push([standings.Rank
-            , standings.TotalResult.Score / 100
-            , standings.TotalResult.Elapsed / 1000000000]);
-        }
+        ret.finalScores.push([
+          standings.TotalResult.Score / 100
+          , standings.TotalResult.Elapsed / 1000000000]
+        );
 
         let tmpTasksAcScore = [];
-        const taskKeys = Object.keys(standings.TaskResults);
-        for(let j = 0, lenTaskKeys = taskKeys.length; j < lenTaskKeys; j++){
-          const task = standings.TaskResults[taskKeys[j]];
+        for(let key in standings.TaskResults){
+          const task = standings.TaskResults[key];
+
           if(task.Score <= 0){
             continue;
           }
+
           tmpTasksAcScore.push({elapsed : task.Elapsed / 1000000000
             , penalty : task.Penalty
-            , ind : taskName2Index[taskKeys[j]]
-            , addingScore : task.Score/100})
+            , score : task.Score/100}
+          );
         }
 
         //ペナルティを問題ごとに累積で付与する
         tmpTasksAcScore.sort((a, b) => a.elapsed - b.elapsed);
-        let countPenalty = 0;
-        for(let j = 0, len = tmpTasksAcScore.length; j < len; j++){
-          const task = tmpTasksAcScore[j];
-          countPenalty += task.penalty;
+        let nowElp = 0, cntPenalty = 0;
+        for(let task of tmpTasksAcScore){
+          cntPenalty += task.penalty;
+          let nextElp = task.elapsed + cntPenalty * this.penalty;
+          let timeDiff = nextElp - nowElp;
+          nowElp = nextElp;
 
-          ret.tasksAcElapses[task.ind].push({key : i
-            , elapsed : task.elapsed + countPenalty*this.penalty
-            , addingScore : task.addingScore});
+          ret.submissions.push({key : task.elapsed
+            , id : ret.entryCount-1
+            , score : task.score
+            , timeDifference : timeDiff
+          });
         }
 
         ret.isRatedList.push(standings.IsRated);
@@ -160,17 +188,16 @@ class ContestInfo{
 
         ret.ratedEntryCount++;
 
-        if(ret.finalRatedScores[ret.finalRatedScores.length-1] != standings.Rank){
-          ret.finalRatedScores.push([ret.ratedEntryCount
-            , standings.TotalResult.Score / 100
-            , standings.TotalResult.Elapsed / 1000000000]);
-        }
+        ret.finalRatedScores.push([
+          standings.TotalResult.Score / 100
+          , standings.TotalResult.Elapsed / 1000000000]
+        );
       }
 
 
       //門番の追加
-      ret.finalScores.push([ret.entryCount+1, -1, 1000000000]);
-      ret.finalRatedScores.push([ret.ratedEntryCount, -1, 1000000000]);
+      ret.finalScores.push([-1, 1000000000]);
+      ret.finalRatedScores.push([-1, 1000000000]);
     })
     .catch(error => {
       this.error = true;
@@ -178,15 +205,15 @@ class ContestInfo{
       console.log(error);
     });
 
-    for(let i = 0, len = ret.tasksAcElapses.length; i < len; i++){
-      ret.tasksAcElapses[i].sort((a, b) => a.elapsed - b.elapsed);
-    }
+
+    ret.submissions.sort((a, b) => a.key - b.key);
     return ret;
   }
 
   getResults(){
     let ret = {
       error : this.error,
+      taskNum : this.taskNum,
       duration : this.duration,
       entryCount : this.entryCount,
       ratedEntryCount : this.ratedEntryCount,
@@ -277,8 +304,8 @@ class MyInfo{
         }
 
         if(this.vc.elapse > 0){
-          this.#fitBackwardTo(this.vc.validElapse);
-          this.#fitForwardTo(this.vc.validElapse);
+          this.#fitBackwardTo(this.vc.elapse);
+          this.#fitForwardTo(this.vc.elapse);
 
           if(this.vc.score === 0){
             this.#updateMyRealtimeRankZero();
@@ -286,6 +313,7 @@ class MyInfo{
             this.#updateMyRealtimeRankAny();
           }
         }
+
       }
     }else{
       if(this.vc.elapse > 0){
@@ -295,11 +323,10 @@ class MyInfo{
 
     if(this.vc.elapse <= 0){
       this.initializeRealtime();
-      contestInfo.initializeRealtime();
       return;
     }
 
-    this.#fitForwardTo(this.vc.elapse + this.vc.penalty*contestInfo.penalty);
+    this.#fitForwardTo(this.vc.elapse);
     this.realtimePerf = contestInfo.performances[this.realtimeRatedRank-1];
     if(!this.realtimePerf){
       this.realtimePerf = contestInfo.performances[contestInfo.performances.length-2];
@@ -307,7 +334,6 @@ class MyInfo{
   }
 
   async #fetchMyVcScore(){
-    console.log('fetch:MyVcScore');
     let ret = {
       score : null,
       validElapse : null,
@@ -363,13 +389,11 @@ class MyInfo{
   }
 
   #getFinalRank(){
-    const ret = this.#binSearchRank(contestInfo.finalScores);
-    return ret;
+    return this.#binSearchRank(contestInfo.finalScores);
   }
 
   #getFinalRatedRank(){
-    const ret = this.#binSearchRank(contestInfo.finalRatedScores);
-    return ret;
+    return this.#binSearchRank(contestInfo.finalRatedScores);
   }
 
   #binSearchRank(scoreBoard){
@@ -382,22 +406,29 @@ class MyInfo{
     let r = scoreBoard.length-1;
     while(l <= r){
       const m = Number.parseInt((l+r)/2);
-      if(this.vc.score === scoreBoard[m][1]){
-        if(this.vc.validElapse === scoreBoard[m][2]){
-          return scoreBoard[m][0];
-        }else if(this.vc.validElapse < scoreBoard[m][2]){
-          r = m-1;
-        }else{
-          l = m+1;
-        }
-      }else if(this.vc.score > scoreBoard[m][1]){
+
+      if(this.#isLessBinSearch(m, scoreBoard)){
         r = m-1;
       }else{
         l = m+1;
       }
     }
 
-    return scoreBoard[l][0];
+    return l+1;
+  }
+
+  #isLessBinSearch(ind, scoreBoard){
+    if(scoreBoard[ind][0] < this.vc.score){
+      return true;
+    }else if(scoreBoard[ind][0] > this.vc.score){
+      return false;
+    }else{
+      if(scoreBoard[ind][1] >= this.vc.validElapse){
+        return true;
+      }else{
+        return false;
+      }
+    }
   }
 
   #updateMyRealtimeRankZero(){
@@ -406,13 +437,10 @@ class MyInfo{
     for(let i = 0; i < contestInfo.realtimeScores.length; i++){
       if(contestInfo.realtimeScores[i] > this.vc.score){
         this.realtimeRank++;
-        contestInfo.isUnderSameScores[i] = false;
 
         if(contestInfo.isRatedList[i]){
           this.realtimeRatedRank++;
         }
-      }else{
-        contestInfo.isUnderSameScores[i] = true;
       }
     }
   }
@@ -428,8 +456,6 @@ class MyInfo{
           this.realtimeRatedRank++;
         }
       }
-
-      contestInfo.isUnderSameScores[i] = false;
     }
   }
 
@@ -440,54 +466,71 @@ class MyInfo{
         currentElapse = 1e9;
       }
 
-      for(let i = 0; i < contestInfo.taskNum; i++){
-        while(contestInfo.indexOfTasksAcElapses[i] < contestInfo.tasksAcElapses[i].length){
-          const tmp = contestInfo.tasksAcElapses[i][contestInfo.indexOfTasksAcElapses[i]];
+      while(contestInfo.realtimeInd < contestInfo.submissions.length){
+        const tmp = contestInfo.submissions[contestInfo.realtimeInd];
 
-          if(tmp.elapsed >= currentElapse){
-            break;
-          }
-
-
-          if(contestInfo.isUnderSameScores[tmp.key]){
-            this.realtimeRank++;
-
-            if(contestInfo.isRatedList[tmp.key]){
-              this.realtimeRatedRank++;
-            }
-          }else if((contestInfo.realtimeScores[tmp.key] < this.vc.score) && (this.vc.score < contestInfo.realtimeScores[tmp.key] + tmp.addingScore)){
-            this.realtimeRank++;
-
-            if(contestInfo.isRatedList[tmp.key]){
-              this.realtimeRatedRank++;
-            }
-          }
-
-          contestInfo.realtimeScores[tmp.key] += tmp.addingScore;
-
-          if(contestInfo.realtimeScores[tmp.key] == this.vc.score){
-            contestInfo.isUnderSameScores[tmp.key] = true;
-          }else{
-            contestInfo.isUnderSameScores[tmp.key] = false;
-          }
-
-          contestInfo.indexOfTasksAcElapses[i]++;
-        }
-      }
-
-  }
-
-  #fitBackwardTo(currentElapse){
-    console.log('fitBackwardTo:' + currentElapse);
-    for(let i = 0; i < contestInfo.taskNum; i++){
-      while(contestInfo.indexOfTasksAcElapses[i]-1 >= 0){
-        const tmp = contestInfo.tasksAcElapses[i][contestInfo.indexOfTasksAcElapses[i]-1];
-        if(tmp.elapsed < currentElapse){
+        if(tmp.key >= currentElapse){
           break;
         }
 
-        contestInfo.realtimeScores[tmp.key] -= tmp.addingScore;
-        contestInfo.indexOfTasksAcElapses[i]--;
+        const oldScore = contestInfo.realtimeScores[tmp.id];
+        const oldElapsed = contestInfo.realtimeElapsed[tmp.id];
+        const newScore = tmp.score + oldScore;
+        const newElapsed = tmp.timeDifference + oldElapsed;
+
+        const needToMoveMyRank = this.#isRankLowerThanYours(oldScore, oldElapsed) && this.#isRankHigherThanYours(newScore, newElapsed);
+        if(needToMoveMyRank){
+          this.realtimeRank++;
+
+          if(contestInfo.isRatedList[tmp.id]){
+            this.realtimeRatedRank++;
+          }
+        }
+
+        contestInfo.realtimeScores[tmp.id] = newScore;
+        contestInfo.realtimeElapsed[tmp.id] = newElapsed;
+
+        contestInfo.realtimeInd++;
+      }
+  }
+
+  #fitBackwardTo(currentElapse){
+    while(contestInfo.realtimeInd-1 >= 0){
+      const tmp = contestInfo.submissions[contestInfo.realtimeInd-1];
+      if(tmp.key < currentElapse){
+        break;
+      }
+
+      contestInfo.realtimeScores[tmp.id] -= tmp.score;
+      contestInfo.realtimeElapsed[tmp.id] -= tmp.timeDifference;
+      contestInfo.realtimeInd--;
+    }
+  }
+
+  #isRankLowerThanYours(score, elapsed){
+    if(score < this.vc.score){
+      return true;
+    }else if(score > this.vc.score){
+      return false;
+    }else{
+      if(elapsed < this.vc.validElapsed){
+        return false;
+      }else{
+        return true;
+      }
+    }
+  }
+
+  #isRankHigherThanYours(score, elapsed){
+    if(score > this.vc.score){
+      return true;
+    }else if(score < this.vc.score){
+      return false;
+    }else{
+      if(elapsed < this.vc.validElapsed){
+        return true;
+      }else{
+        return false;
       }
     }
   }
@@ -497,9 +540,7 @@ class MyInfo{
     this.realtimeRatedRank = null;
     this.realtimePerf = null;
 
-    contestInfo.indexOfTasksAcElapses.fill(0);
-    contestInfo.realtimeScores.fill(0);
-    contestInfo.isUnderSameScores.fill(false);
+    contestInfo.initializeRealtime();
   }
 
   getResults(){
