@@ -87,3 +87,5 @@ https://chrome.google.com/webstore/detail/atcoder-virtualcontest-co/cedjfjpgichj
  
 
 # 確認済のバグ
+
+・現在の順位が正しくない問題
