@@ -210,6 +210,192 @@ class ContestInfo{
     return ret;
   }
 
+  getPerformance(ratedRank){
+    let ret = this.performances[ratedRank-1];
+
+    if(!ret){
+      ret = this.performances[this.performances.length-1];
+    }
+    return ret;
+  }
+
+  recalcMyRanks(myScore, myElapse){
+    if(myElapse == 0){
+      return this.#recalcMyRealtimeRankZero();
+    }else{
+      return this.#recalcMyRealtimeRankAny(myScore, myElapse);
+    }
+  }
+
+  #recalcMyRealtimeRankZero(){
+    let ret = {
+      realtimeRank : 1,
+      realtimeRatedRank : 1
+    }
+
+    for(let i = 0; i < this.realtimeScores.length; i++){
+      if(this.realtimeScores[i] > 0){
+        ret.realtimeRank++;
+
+        if(this.isRatedList[i]){
+          ret.realtimeRatedRank++;
+        }
+      }
+    }
+
+    return ret;
+  }
+
+  #recalcMyRealtimeRankAny(myScore, myElapse){
+    let ret = {
+      realtimeRank : 1,
+      realtimeRatedRank : 1
+    }
+
+    for(let i = 0; i < this.realtimeScores.length; i++){
+      let upperScore = this.realtimeScores[i] > myScore;
+      let sameScoreFastTime = (this.realtimeScores[i] == myScore) && (this.realtimeElapsed[i] < myElapse);
+      if(upperScore || sameScoreFastTime){
+        ret.realtimeRank++;
+
+        if(this.isRatedList[i]){
+          ret.realtimeRatedRank++;
+        }
+      }
+    }
+
+    return ret;
+  }
+
+  fitTo(currentElapse, myScore, myElapse){
+    let ret = {
+      realtimeRankDifference : 0,
+      realtimeRatedRankDifference : 0
+    }
+      console.log('fitTo:' + currentElapse);
+
+    let fbt = this.#fitBackwardTo(currentElapse, myScore, myElapse);
+    let fft = this.#fitForwardTo(currentElapse, myScore, myElapse);
+
+    console.log(fbt);
+    console.log(fft);
+
+    ret.realtimeRankDifference = fbt.realtimeRankDifference + fft.realtimeRankDifference;
+    ret.realtimeRatedRankDifference = fbt.realtimeRatedRankDifference + fft.realtimeRatedRankDifference;
+
+
+    console.log(ret);
+    return ret;
+  }
+
+  #fitForwardTo(currentElapse, myScore, myElapse){
+    let ret = {
+      realtimeRankDifference : 0,
+      realtimeRatedRankDifference : 0
+    }
+
+      if(currentElapse < 0){
+        currentElapse = 1e9;
+      }
+
+      while(this.realtimeInd < this.submissions.length){
+        const tmp = this.submissions[this.realtimeInd];
+
+        if(tmp.key >= currentElapse){
+          break;
+        }
+
+        const oldScore = this.realtimeScores[tmp.id];
+        const oldElapsed = this.realtimeElapsed[tmp.id];
+        const newScore = oldScore + tmp.score;
+        const newElapsed = oldElapsed + tmp.timeDifference;
+
+        const needToMoveMyRank = this.#isRankLowerThanYours(oldScore, oldElapsed, myScore, myElapse) && this.#isRankHigherThanYours(newScore, newElapsed, myScore, myElapse);
+        console.log(needToMoveMyRank);
+        if(needToMoveMyRank){
+          ret.realtimeRankDifference++;
+
+          if(this.isRatedList[tmp.id]){
+            ret.realtimeRatedRankDifference++;
+          }
+        }
+
+        this.realtimeScores[tmp.id] = newScore;
+        this.realtimeElapsed[tmp.id] = newElapsed;
+
+        this.realtimeInd++;
+      }
+
+      return ret
+  }
+
+  #fitBackwardTo(currentElapse, myScore, myElapse){
+    let ret = {
+      realtimeRankDifference : 0,
+      realtimeRatedRankDifference : 0
+    }
+
+    if(currentElapse < 0){
+      currentElapse = 1e9;
+    }
+
+    while(this.realtimeInd-1 >= 0){
+      const tmp = this.submissions[this.realtimeInd-1];
+      if(tmp.key <= currentElapse){
+        break;
+      }
+
+      const oldScore = this.realtimeScores[tmp.id];
+      const oldElapsed = this.realtimeElapsed[tmp.id];
+      const newScore = oldScore - tmp.score;
+      const newElapsed = oldElapsed - tmp.timeDifference;
+
+      const needToMoveMyRank = this.#isRankLowerThanYours(newScore, newElapsed, myScore, myElapse) && this.#isRankHigherThanYours(oldScore, oldElapsed, myScore, myElapse);
+
+      if(needToMoveMyRank){
+        ret.realtimeRankDifference--;
+
+        if(this.isRatedList[tmp.id]){
+          ret.realtimeRatedRankDifference--;
+        }
+      }
+
+      contestInfo.realtimeScores[tmp.id] = newScore;
+      contestInfo.realtimeElapsed[tmp.id] = newElapsed;
+      contestInfo.realtimeInd--;
+    }
+
+    return ret
+  }
+
+  #isRankLowerThanYours(score, elapsed, myScore, myElapse){
+    if(score < myScore){
+      return true;
+    }else if(score > myScore){
+      return false;
+    }else{
+      if(elapsed < myElapse){
+        return false;
+      }else{
+        return true;
+      }
+    }
+  }
+
+  #isRankHigherThanYours(score, elapsed, myScore, myElapse){
+    if(score > myScore){
+      return true;
+    }else if(score < myScore){
+      return false;
+    }else{
+      if(elapsed < myElapse){
+        return true;
+      }else{
+        return false;
+      }
+    }
+  }
+
   getResults(){
     let ret = {
       error : this.error,
@@ -298,20 +484,16 @@ class MyInfo{
 
         this.finalRank = this.#getFinalRank();
         this.finalRatedRank = this.#getFinalRatedRank();
-        this.finalPerf = contestInfo.performances[this.finalRatedRank-1];
-        if(!this.finalPerf){
-          this.finalPerf = contestInfo.performances[contestInfo.performances.length-2];
-        }
+        this.finalPerf = contestInfo.getPerformance(this.finalRatedRank);
 
         if(this.vc.elapse > 0){
-          this.#fitBackwardTo(this.vc.elapse);
-          this.#fitForwardTo(this.vc.elapse);
+          contestInfo.fitTo(this.vc.elapse, this.vc.score, this.vc.validElapse);
 
-          if(this.vc.score === 0){
-            this.#updateMyRealtimeRankZero();
-          }else{
-            this.#updateMyRealtimeRankAny();
-          }
+          console.log(contestInfo.recalcMyRanks(this.vc.score, this.vc.validElapse));
+
+          let myRanks = contestInfo.recalcMyRanks(this.vc.score, this.vc.validElapse);
+          this.realtimeRank = myRanks.realtimeRank;
+          this.realtimeRatedRank = myRanks.realtimeRatedRank;
         }
 
       }
@@ -326,11 +508,11 @@ class MyInfo{
       return;
     }
 
-    this.#fitForwardTo(this.vc.elapse);
-    this.realtimePerf = contestInfo.performances[this.realtimeRatedRank-1];
-    if(!this.realtimePerf){
-      this.realtimePerf = contestInfo.performances[contestInfo.performances.length-2];
-    }
+    let ft = contestInfo.fitTo(this.vc.elapse, this.vc.score, this.vc.validElapse);
+    this.realtimeRank += ft.realtimeRankDifference;
+    this.realtimeRatedRank += ft.realtimeRatedRankDifference;
+
+    this.realtimePerf = contestInfo.getPerformance(this.realtimeRatedRank);
   }
 
   async #fetchMyVcScore(){
@@ -431,110 +613,6 @@ class MyInfo{
     }
   }
 
-  #updateMyRealtimeRankZero(){
-    this.realtimeRank = 1;
-    this.realtimeRatedRank = 1;
-    for(let i = 0; i < contestInfo.realtimeScores.length; i++){
-      if(contestInfo.realtimeScores[i] > this.vc.score){
-        this.realtimeRank++;
-
-        if(contestInfo.isRatedList[i]){
-          this.realtimeRatedRank++;
-        }
-      }
-    }
-  }
-
-  #updateMyRealtimeRankAny(){
-    this.realtimeRank = 1;
-    this.realtimeRatedRank = 1;
-    for(let i = 0; i < contestInfo.realtimeScores.length; i++){
-      if(contestInfo.realtimeScores[i] >= this.vc.score){
-        this.realtimeRank++;
-
-        if(contestInfo.isRatedList[i]){
-          this.realtimeRatedRank++;
-        }
-      }
-    }
-  }
-
-  #fitForwardTo(currentElapse){
-    console.log('fitForwardTo:' + currentElapse);
-
-      if(currentElapse < 0){
-        currentElapse = 1e9;
-      }
-
-      while(contestInfo.realtimeInd < contestInfo.submissions.length){
-        const tmp = contestInfo.submissions[contestInfo.realtimeInd];
-
-        if(tmp.key >= currentElapse){
-          break;
-        }
-
-        const oldScore = contestInfo.realtimeScores[tmp.id];
-        const oldElapsed = contestInfo.realtimeElapsed[tmp.id];
-        const newScore = tmp.score + oldScore;
-        const newElapsed = tmp.timeDifference + oldElapsed;
-
-        const needToMoveMyRank = this.#isRankLowerThanYours(oldScore, oldElapsed) && this.#isRankHigherThanYours(newScore, newElapsed);
-        if(needToMoveMyRank){
-          this.realtimeRank++;
-
-          if(contestInfo.isRatedList[tmp.id]){
-            this.realtimeRatedRank++;
-          }
-        }
-
-        contestInfo.realtimeScores[tmp.id] = newScore;
-        contestInfo.realtimeElapsed[tmp.id] = newElapsed;
-
-        contestInfo.realtimeInd++;
-      }
-  }
-
-  #fitBackwardTo(currentElapse){
-    while(contestInfo.realtimeInd-1 >= 0){
-      const tmp = contestInfo.submissions[contestInfo.realtimeInd-1];
-      if(tmp.key < currentElapse){
-        break;
-      }
-
-      contestInfo.realtimeScores[tmp.id] -= tmp.score;
-      contestInfo.realtimeElapsed[tmp.id] -= tmp.timeDifference;
-      contestInfo.realtimeInd--;
-    }
-  }
-
-  #isRankLowerThanYours(score, elapsed){
-    if(score < this.vc.score){
-      return true;
-    }else if(score > this.vc.score){
-      return false;
-    }else{
-      if(elapsed < this.vc.validElapsed){
-        return false;
-      }else{
-        return true;
-      }
-    }
-  }
-
-  #isRankHigherThanYours(score, elapsed){
-    if(score > this.vc.score){
-      return true;
-    }else if(score < this.vc.score){
-      return false;
-    }else{
-      if(elapsed < this.vc.validElapsed){
-        return true;
-      }else{
-        return false;
-      }
-    }
-  }
-
   initializeRealtime(){
     this.realtimeRank = null;
     this.realtimeRatedRank = null;
@@ -593,6 +671,19 @@ const opt_acvc = new Opt_acvc();
 
 let timerSendContent;
 let senderVcTabId;
+
+function testFitTo(time){
+  myInfo.fitBackwardTo(time);
+  myInfo.fitForwardTo(time);
+
+  if(this.vc.score === 0){
+    this.updateMyRealtimeRankZero();
+  }else{
+    this.updateMyRealtimeRankAny();
+  }
+
+  return contestInfo;
+}
 
 chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
    if(request.mode === "setContest"){
