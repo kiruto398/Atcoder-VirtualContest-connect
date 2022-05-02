@@ -85,7 +85,10 @@ https://chrome.google.com/webstore/detail/atcoder-virtualcontest-co/cedjfjpgichj
  
  ・現在の順位を求める仕組みの変更
  
+ 2022/5/2 Ver1.1.3.1
+ 
+・現在の順位が正しくない問題の解決
+ 
 
 # 確認済のバグ
 
-・現在の順位が正しくない問題
